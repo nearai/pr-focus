@@ -1,0 +1,168 @@
+import { Octokit } from '@octokit/rest'
+
+export interface PRData {
+  number: number
+  title: string
+  body: string
+  state: 'open' | 'closed' | 'merged'
+  user: {
+    login: string
+    avatar_url: string
+  }
+  created_at: string
+  updated_at: string
+  head: {
+    sha: string
+    ref: string
+  }
+  base: {
+    sha: string
+    ref: string
+  }
+}
+
+export interface PRFile {
+  filename: string
+  status: 'added' | 'removed' | 'modified' | 'renamed'
+  additions: number
+  deletions: number
+  changes: number
+  patch?: string
+}
+
+export interface PRComment {
+  id: number
+  user: {
+    login: string
+    avatar_url: string
+  }
+  body: string
+  created_at: string
+  updated_at: string
+  path?: string
+  position?: number
+  line?: number
+  commit_id?: string
+}
+
+export class GitHubClient {
+  private octokit: Octokit
+
+  constructor(token?: string) {
+    this.octokit = new Octokit({
+      auth: token,
+    })
+  }
+
+  async getPR(owner: string, repo: string, pullNumber: number): Promise<PRData> {
+    const { data } = await this.octokit.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: pullNumber,
+    })
+
+    return {
+      number: data.number,
+      title: data.title,
+      body: data.body || '',
+      state: data.state as 'open' | 'closed' | 'merged',
+      user: {
+        login: data.user?.login || '',
+        avatar_url: data.user?.avatar_url || '',
+      },
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      head: {
+        sha: data.head.sha,
+        ref: data.head.ref,
+      },
+      base: {
+        sha: data.base.sha,
+        ref: data.base.ref,
+      },
+    }
+  }
+
+  async getPRFiles(owner: string, repo: string, pullNumber: number): Promise<PRFile[]> {
+    const { data } = await this.octokit.rest.pulls.listFiles({
+      owner,
+      repo,
+      pull_number: pullNumber,
+    })
+
+    return data.map(file => ({
+      filename: file.filename,
+      status: file.status as 'added' | 'removed' | 'modified' | 'renamed',
+      additions: file.additions,
+      deletions: file.deletions,
+      changes: file.changes,
+      patch: file.patch,
+    }))
+  }
+
+  async getPRComments(owner: string, repo: string, pullNumber: number): Promise<PRComment[]> {
+    const [reviewComments, issueComments] = await Promise.all([
+      this.octokit.rest.pulls.listReviewComments({
+        owner,
+        repo,
+        pull_number: pullNumber,
+      }),
+      this.octokit.rest.issues.listComments({
+        owner,
+        repo,
+        issue_number: pullNumber,
+      }),
+    ])
+
+    const comments: PRComment[] = []
+
+    // Add review comments (inline comments on code)
+    reviewComments.data.forEach(comment => {
+      comments.push({
+        id: comment.id,
+        user: {
+          login: comment.user?.login || '',
+          avatar_url: comment.user?.avatar_url || '',
+        },
+        body: comment.body,
+        created_at: comment.created_at,
+        updated_at: comment.updated_at,
+        path: comment.path,
+        position: comment.position || undefined,
+        line: comment.line || undefined,
+        commit_id: comment.commit_id,
+      })
+    })
+
+    // Add issue comments (general PR comments)
+    issueComments.data.forEach(comment => {
+      comments.push({
+        id: comment.id,
+        user: {
+          login: comment.user?.login || '',
+          avatar_url: comment.user?.avatar_url || '',
+        },
+        body: comment.body || '',
+        created_at: comment.created_at,
+        updated_at: comment.updated_at,
+      })
+    })
+
+    return comments.sort((a, b) => 
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+  }
+}
+
+export function parsePRUrl(url: string): { owner: string; repo: string; pullNumber: number } | null {
+  const regex = /github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/
+  const match = url.match(regex)
+  
+  if (!match) return null
+  
+  return {
+    owner: match[1],
+    repo: match[2],
+    pullNumber: parseInt(match[3], 10),
+  }
+}
