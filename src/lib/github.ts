@@ -45,6 +45,30 @@ export interface PRComment {
   commit_id?: string
 }
 
+export interface PRSummary {
+  id: number
+  number: number
+  title: string
+  state: 'open' | 'closed' | 'merged'
+  user: {
+    login: string
+    avatar_url: string
+  }
+  created_at: string
+  updated_at: string
+  repository: {
+    name: string
+    full_name: string
+    owner: {
+      login: string
+    }
+  }
+  requested_reviewers: Array<{
+    login: string
+    avatar_url: string
+  }>
+}
+
 export class GitHubClient {
   private octokit: Octokit
 
@@ -151,6 +175,76 @@ export class GitHubClient {
     return comments.sort((a, b) => 
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     )
+  }
+
+  async getUserAssignedPRs(username: string): Promise<PRSummary[]> {
+    const { data } = await this.octokit.rest.search.issuesAndPullRequests({
+      q: `is:pr is:open review-requested:${username}`,
+      sort: 'updated',
+      order: 'desc',
+      per_page: 50
+    })
+
+    return data.items.map(item => {
+      const repoUrl = item.repository_url || item.html_url.split('/pull/')[0]
+      const repoParts = repoUrl.split('/').slice(-2)
+      
+      return {
+        id: item.id,
+        number: item.number,
+        title: item.title,
+        state: item.state as 'open' | 'closed',
+        user: {
+          login: item.user?.login || '',
+          avatar_url: item.user?.avatar_url || '',
+        },
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        repository: {
+          name: repoParts[1] || '',
+          full_name: repoParts.join('/'),
+          owner: {
+            login: repoParts[0] || '',
+          }
+        },
+        requested_reviewers: []
+      }
+    })
+  }
+
+  async getUserCreatedPRs(username: string): Promise<PRSummary[]> {
+    const { data } = await this.octokit.rest.search.issuesAndPullRequests({
+      q: `is:pr is:open author:${username}`,
+      sort: 'updated',
+      order: 'desc',
+      per_page: 50
+    })
+
+    return data.items.map(item => {
+      const repoUrl = item.repository_url || item.html_url.split('/pull/')[0]
+      const repoParts = repoUrl.split('/').slice(-2)
+      
+      return {
+        id: item.id,
+        number: item.number,
+        title: item.title,
+        state: item.state as 'open' | 'closed',
+        user: {
+          login: item.user?.login || '',
+          avatar_url: item.user?.avatar_url || '',
+        },
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        repository: {
+          name: repoParts[1] || '',
+          full_name: repoParts.join('/'),
+          owner: {
+            login: repoParts[0] || '',
+          }
+        },
+        requested_reviewers: []
+      }
+    })
   }
 }
 

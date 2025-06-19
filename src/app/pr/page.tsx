@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { PRData, PRFile, PRComment } from '@/lib/github'
+import { AuthService, AuthUser } from '@/lib/auth'
 import DiffViewer from '@/components/DiffViewer'
 import CommentSection from '@/components/CommentSection'
 
@@ -12,20 +14,39 @@ interface PRResponse {
 }
 
 export default function PRPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [prUrl, setPrUrl] = useState('')
   const [prData, setPrData] = useState<PRResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!prUrl.trim()) return
+  useEffect(() => {
+    const storedUser = AuthService.getStoredAuth()
+    setUser(storedUser)
+
+    // Auto-load PR if URL is in search params
+    const urlParam = searchParams.get('url')
+    if (urlParam) {
+      setPrUrl(urlParam)
+      handleSubmitWithUrl(urlParam, storedUser)
+    }
+  }, [searchParams])
+
+  const handleSubmitWithUrl = async (url: string, authUser: AuthUser | null) => {
+    if (!url.trim()) return
 
     setLoading(true)
     setError('')
 
     try {
-      const response = await fetch(`/api/pr?url=${encodeURIComponent(prUrl)}`)
+      const params = new URLSearchParams({ url })
+      if (authUser?.access_token) {
+        params.append('token', authUser.access_token)
+      }
+
+      const response = await fetch(`/api/pr?${params.toString()}`)
       const data = await response.json()
 
       if (!response.ok) {
@@ -40,10 +61,63 @@ export default function PRPage() {
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await handleSubmitWithUrl(prUrl, user)
+  }
+
+  const handleConnectGitHub = () => {
+    window.location.href = AuthService.getAuthUrl()
+  }
+
+  const handleLogout = () => {
+    AuthService.logout()
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
+      <div className="bg-white shadow mb-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => router.push('/')}
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                ← Back to Dashboard
+              </button>
+              <h1 className="text-2xl font-bold text-gray-900">PR Reviewer</h1>
+            </div>
+            {user ? (
+              <div className="flex items-center space-x-4">
+                <img
+                  src={user.avatar_url}
+                  alt={user.login}
+                  className="w-8 h-8 rounded-full"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  {user.name}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleConnectGitHub}
+                className="bg-gray-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 transition-colors text-sm"
+              >
+                Connect GitHub
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 sm:mb-8">PR Reviewer</h1>
         
         <form onSubmit={handleSubmit} className="mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row gap-4">

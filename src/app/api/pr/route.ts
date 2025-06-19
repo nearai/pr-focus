@@ -4,6 +4,7 @@ import { GitHubClient, parsePRUrl } from '@/lib/github'
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const url = searchParams.get('url')
+  const token = searchParams.get('token')
 
   if (!url) {
     return NextResponse.json({ error: 'PR URL is required' }, { status: 400 })
@@ -15,7 +16,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const client = new GitHubClient(process.env.GITHUB_TOKEN)
+    // Use OAuth token if provided, otherwise fall back to env token
+    const authToken = token || process.env.GITHUB_TOKEN
+    const client = new GitHubClient(authToken)
     const { owner, repo, pullNumber } = parsed
 
     const [pr, files, comments] = await Promise.all([
