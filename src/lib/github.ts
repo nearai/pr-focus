@@ -73,10 +73,8 @@ export interface PRSummary {
 export class GitHubClient {
   private octokit: Octokit
 
-  constructor(token?: string) {
-    this.octokit = new Octokit({
-      auth: token,
-    })
+  private constructor(octokit: Octokit) {
+    this.octokit = octokit
   }
 
   static createWithInstallation(installationId: number): GitHubClient {
@@ -89,9 +87,7 @@ export class GitHubClient {
       },
     })
     
-    const client = new GitHubClient()
-    client.octokit = octokit
-    return client
+    return new GitHubClient(octokit)
   }
 
   async getPR(owner: string, repo: string, pullNumber: number): Promise<PRData> {

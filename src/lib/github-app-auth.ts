@@ -54,6 +54,8 @@ export class GitHubAppAuthService {
   }
 
   static getInstallationUrl(): string {
+    // GitHub will redirect to the "Setup URL" configured in the GitHub App settings
+    // The Setup URL should be: https://pr-focus.vercel.app/api/auth/github-app/install
     return `https://github.com/apps/pr-focus/installations/new`
   }
 

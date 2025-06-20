@@ -24,6 +24,7 @@ function GitHubAppContent() {
     const initAuth = async () => {
       const code = searchParams.get('code')
       const installationId = searchParams.get('installation_id')
+      const setup = searchParams.get('setup')
       const error = searchParams.get('error')
 
       if (error) {
@@ -32,6 +33,17 @@ function GitHubAppContent() {
         return
       }
 
+      // Handle installation completion
+      if (setup === 'complete' && installationId) {
+        console.log('GitHub App installation completed:', installationId)
+        // Clear URL params and proceed to authorize the user
+        router.replace('/github-app')
+        const authUrl = GitHubAppAuthService.getAuthUrl(parseInt(installationId))
+        window.location.href = authUrl
+        return
+      }
+
+      // Handle OAuth code exchange
       if (code && installationId) {
         try {
           const authUser = await GitHubAppAuthService.exchangeCodeForToken(code, parseInt(installationId))

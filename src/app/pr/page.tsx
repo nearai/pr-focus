@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { PRData, PRFile, PRComment } from '@/lib/github'
-import { AuthService, AuthUser } from '@/lib/auth'
+import { GitHubAppAuthService, GitHubAppUser } from '@/lib/github-app-auth'
 import DiffViewer from '@/components/DiffViewer'
 import CommentSection from '@/components/CommentSection'
 
@@ -16,14 +16,14 @@ interface PRResponse {
 function PRPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const [user, setUser] = useState<GitHubAppUser | null>(null)
   const [prUrl, setPrUrl] = useState('')
   const [prData, setPrData] = useState<PRResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const storedUser = AuthService.getStoredAuth()
+    const storedUser = GitHubAppAuthService.getStoredAuth()
     setUser(storedUser)
 
     // Auto-load PR if URL is in search params
@@ -34,42 +34,33 @@ function PRPageContent() {
     }
   }, [searchParams])
 
-  const handleSubmitWithUrl = async (url: string, authUser: AuthUser | null) => {
+  const handleSubmitWithUrl = async (url: string, appUser: GitHubAppUser | null) => {
     if (!url.trim()) return
+
+    // Require installation ID for GitHub App
+    const installationId = searchParams.get('installation_id') || appUser?.installation_id
+    if (!installationId) {
+      setError('Installation ID is required. Please go through the GitHub App authentication flow.')
+      return
+    }
 
     setLoading(true)
     setError('')
 
     try {
-      const params = new URLSearchParams({ url })
-      const installationId = searchParams.get('installation_id')
+      const params = new URLSearchParams({ 
+        url,
+        installation_id: installationId.toString()
+      })
       
-      if (installationId) {
-        // Use GitHub App API
-        params.append('installation_id', installationId)
-        const response = await fetch(`/api/github-app/pr?${params.toString()}`)
-        const data = await response.json()
+      const response = await fetch(`/api/github-app/pr?${params.toString()}`)
+      const data = await response.json()
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to fetch PR data')
-        }
-
-        setPrData(data)
-      } else {
-        // Use OAuth API
-        if (authUser?.access_token) {
-          params.append('token', authUser.access_token)
-        }
-
-        const response = await fetch(`/api/pr?${params.toString()}`)
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to fetch PR data')
-        }
-
-        setPrData(data)
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch PR data')
       }
+
+      setPrData(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -83,11 +74,11 @@ function PRPageContent() {
   }
 
   const handleConnectGitHub = () => {
-    window.location.href = AuthService.getAuthUrl()
+    router.push('/github-app')
   }
 
   const handleLogout = () => {
-    AuthService.logout()
+    GitHubAppAuthService.logout()
   }
 
   return (
@@ -126,7 +117,7 @@ function PRPageContent() {
                 onClick={handleConnectGitHub}
                 className="bg-gray-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 transition-colors text-sm"
               >
-                Connect GitHub
+                Connect GitHub App
               </button>
             )}
           </div>
