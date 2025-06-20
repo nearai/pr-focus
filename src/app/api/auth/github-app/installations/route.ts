@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GitHubAppAuthService } from '@/lib/github-app-auth'
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')

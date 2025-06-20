@@ -8,6 +8,9 @@ import {
 } from '@/lib/webhook-verification'
 import { WebhookEventProcessor } from '@/lib/webhook-handlers'
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     // Get the raw body for signature verification
