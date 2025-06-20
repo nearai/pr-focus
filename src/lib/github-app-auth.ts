@@ -37,14 +37,22 @@ export class GitHubAppAuthService {
     
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY)
-      return stored ? JSON.parse(stored) : null
-    } catch {
+      const user = stored ? JSON.parse(stored) : null
+      if (user) {
+        console.log('Retrieved stored GitHub App authentication:', { login: user.login, installation_id: user.installation_id })
+      } else {
+        console.log('No stored GitHub App authentication found')
+      }
+      return user
+    } catch (error) {
+      console.error('Error retrieving stored authentication:', error)
       return null
     }
   }
 
   static setStoredAuth(user: GitHubAppUser): void {
     if (typeof window === 'undefined') return
+    console.log('Storing GitHub App authentication:', { login: user.login, installation_id: user.installation_id })
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(user))
   }
 

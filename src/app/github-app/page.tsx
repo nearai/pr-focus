@@ -38,8 +38,7 @@ function GitHubAppContent() {
         console.log('GitHub App installation completed:', installationId)
         // Clear URL params and proceed to authorize the user
         router.replace('/github-app')
-        const authUrl = GitHubAppAuthService.getAuthUrl(parseInt(installationId))
-        window.location.href = authUrl
+        window.location.href = GitHubAppAuthService.getAuthUrl(parseInt(installationId))
         return
       }
 
@@ -49,16 +48,19 @@ function GitHubAppContent() {
           const authUser = await GitHubAppAuthService.exchangeCodeForToken(code, parseInt(installationId))
           setAppUser(authUser)
           setSelectedInstallation(authUser.installation_id)
-          router.replace('/github-app')
+          // Redirect to root page to show the dashboard
+          router.replace('/')
         } catch (error) {
           console.error('Failed to exchange code for token:', error)
         }
       } else {
         const storedUser = GitHubAppAuthService.getStoredAuth()
-        setAppUser(storedUser)
         if (storedUser) {
-          setSelectedInstallation(storedUser.installation_id)
+          // User is already authenticated, redirect to dashboard
+          router.replace('/')
+          return
         }
+        setAppUser(storedUser)
       }
       
       setLoading(false)

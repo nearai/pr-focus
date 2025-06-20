@@ -21,6 +21,16 @@ function HomeContent() {
   
   useEffect(() => {
     const initAuth = async () => {
+      // Check if we have URL parameters that indicate authentication is in progress
+      const urlParams = new URLSearchParams(window.location.search)
+      const hasAuthParams = urlParams.has('code') || urlParams.has('installation_id') || urlParams.has('setup')
+      
+      if (hasAuthParams) {
+        // Authentication/installation is in progress, redirect to GitHub App page
+        router.push(`/github-app${window.location.search}`)
+        return
+      }
+      
       const storedUser = GitHubAppAuthService.getStoredAuth()
       
       if (!storedUser) {
