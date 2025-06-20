@@ -26,11 +26,9 @@ export interface GitHubAppInstallation {
 }
 
 const APP_ID = process.env.NEXT_PUBLIC_GITHUB_APP_ID!
-const PRIVATE_KEY = convertPKCS1ToPKCS8(process.env.GITHUB_APP_PRIVATE_KEY!)
 const CLIENT_ID = process.env.GITHUB_APP_CLIENT_ID!
 
 function convertPKCS1ToPKCS8(pkcs1Key: string): string {
-
   if (!pkcs1Key) {
     throw new Error('Private key is required');
   }
@@ -47,6 +45,13 @@ function convertPKCS1ToPKCS8(pkcs1Key: string): string {
   }
   
   return pkcs1Key
+}
+
+function getPrivateKey(): string {
+  if (typeof window !== 'undefined') {
+    throw new Error('Private key access not allowed on client side')
+  }
+  return convertPKCS1ToPKCS8(process.env.GITHUB_APP_PRIVATE_KEY!)
 }
 
 export class GitHubAppAuthService {
@@ -147,7 +152,7 @@ export class GitHubAppAuthService {
       authStrategy: createAppAuth,
       auth: {
         appId: APP_ID,
-        privateKey: PRIVATE_KEY,
+        privateKey: getPrivateKey(),
       },
     })
   }
@@ -157,7 +162,7 @@ export class GitHubAppAuthService {
       authStrategy: createAppAuth,
       auth: {
         appId: APP_ID,
-        privateKey: PRIVATE_KEY,
+        privateKey: getPrivateKey(),
         installationId: installationId,
       },
     })

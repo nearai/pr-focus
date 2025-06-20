@@ -1,5 +1,5 @@
 import { Octokit } from '@octokit/rest'
-import { createAppAuth } from '@octokit/auth-app'
+import { GitHubAppAuthService } from '@/lib/github-app-auth'
 
 export interface PRData {
   number: number
@@ -78,15 +78,9 @@ export class GitHubClient {
   }
 
   static createWithInstallation(installationId: number): GitHubClient {
-    const octokit = new Octokit({
-      authStrategy: createAppAuth,
-      auth: {
-        appId: process.env.NEXT_PUBLIC_GITHUB_APP_ID!,
-        privateKey: process.env.GITHUB_APP_PRIVATE_KEY!,
-        installationId: installationId,
-      },
-    })
-    
+    // Use GitHubAppAuthService to create an installation client
+    const octokit = GitHubAppAuthService.createInstallationClient(installationId)
+
     return new GitHubClient(octokit)
   }
 
@@ -200,7 +194,7 @@ export class GitHubClient {
     return data.items.map(item => {
       const repoUrl = item.repository_url || item.html_url.split('/pull/')[0]
       const repoParts = repoUrl.split('/').slice(-2)
-      
+
       return {
         id: item.id,
         number: item.number,
@@ -235,7 +229,7 @@ export class GitHubClient {
     return data.items.map(item => {
       const repoUrl = item.repository_url || item.html_url.split('/pull/')[0]
       const repoParts = repoUrl.split('/').slice(-2)
-      
+
       return {
         id: item.id,
         number: item.number,
@@ -263,9 +257,9 @@ export class GitHubClient {
 export function parsePRUrl(url: string): { owner: string; repo: string; pullNumber: number } | null {
   const regex = /github\.com\/([^\/]+)\/([^\/]+)\/pull\/(\d+)/
   const match = url.match(regex)
-  
+
   if (!match) return null
-  
+
   return {
     owner: match[1],
     repo: match[2],
