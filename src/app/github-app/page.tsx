@@ -36,9 +36,28 @@ function GitHubAppContent() {
       // Handle installation completion
       if (setup === 'complete' && installationId) {
         console.log('GitHub App installation completed:', installationId)
-        // Clear URL params and proceed to authorize the user
-        router.replace('/github-app')
-        window.location.href = GitHubAppAuthService.getAuthUrl(parseInt(installationId))
+        
+        // Check if we also have an OAuth code (from "Request user authorization during installation")
+        if (code) {
+          console.log('OAuth code provided during installation, proceeding with token exchange')
+          // We have both installation and OAuth code - proceed directly to token exchange
+          try {
+            const authUser = await GitHubAppAuthService.exchangeCodeForToken(code, parseInt(installationId))
+            setAppUser(authUser)
+            setSelectedInstallation(authUser.installation_id)
+            // Clear URL params and redirect to dashboard
+            router.replace('/')
+          } catch (error) {
+            console.error('Failed to exchange code for token during installation:', error)
+            // Fall back to manual OAuth flow
+            router.replace('/github-app')
+            window.location.href = GitHubAppAuthService.getAuthUrl(parseInt(installationId))
+          }
+        } else {
+          // No OAuth code - need to start OAuth flow manually
+          router.replace('/github-app')
+          window.location.href = GitHubAppAuthService.getAuthUrl(parseInt(installationId))
+        }
         return
       }
 
