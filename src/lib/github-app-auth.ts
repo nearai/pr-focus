@@ -28,30 +28,11 @@ export interface GitHubAppInstallation {
 const APP_ID = process.env.NEXT_PUBLIC_GITHUB_APP_ID!
 const CLIENT_ID = process.env.GITHUB_APP_CLIENT_ID!
 
-function convertPKCS1ToPKCS8(pkcs1Key: string): string {
-  if (!pkcs1Key) {
-    throw new Error('Private key is required');
-  }
-  // If it's already PKCS#8, return as-is
-  if (pkcs1Key.includes('BEGIN PRIVATE KEY')) {
-    return pkcs1Key
-  }
-  
-  // Convert PKCS#1 to PKCS#8 format
-  if (pkcs1Key.includes('BEGIN RSA PRIVATE KEY')) {
-    return pkcs1Key
-      .replace('-----BEGIN RSA PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----')
-      .replace('-----END RSA PRIVATE KEY-----', '-----END PRIVATE KEY-----')
-  }
-  
-  return pkcs1Key
-}
-
 function getPrivateKey(): string {
   if (typeof window !== 'undefined') {
     throw new Error('Private key access not allowed on client side')
   }
-  return convertPKCS1ToPKCS8(process.env.GITHUB_APP_PRIVATE_KEY!)
+  return process.env.GITHUB_APP_PRIVATE_KEY!
 }
 
 export class GitHubAppAuthService {
