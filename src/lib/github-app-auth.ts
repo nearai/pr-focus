@@ -26,8 +26,24 @@ export interface GitHubAppInstallation {
 }
 
 const APP_ID = process.env.NEXT_PUBLIC_GITHUB_APP_ID!
-const PRIVATE_KEY = process.env.GITHUB_APP_PRIVATE_KEY!
+const PRIVATE_KEY = convertPKCS1ToPKCS8(process.env.GITHUB_APP_PRIVATE_KEY!)
 const CLIENT_ID = process.env.GITHUB_APP_CLIENT_ID!
+
+function convertPKCS1ToPKCS8(pkcs1Key: string): string {
+  // If it's already PKCS#8, return as-is
+  if (pkcs1Key.includes('BEGIN PRIVATE KEY')) {
+    return pkcs1Key
+  }
+  
+  // Convert PKCS#1 to PKCS#8 format
+  if (pkcs1Key.includes('BEGIN RSA PRIVATE KEY')) {
+    return pkcs1Key
+      .replace('-----BEGIN RSA PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----')
+      .replace('-----END RSA PRIVATE KEY-----', '-----END PRIVATE KEY-----')
+  }
+  
+  return pkcs1Key
+}
 
 export class GitHubAppAuthService {
   private static STORAGE_KEY = 'github_app_user'
@@ -78,7 +94,6 @@ export class GitHubAppAuthService {
   }
 
   static async exchangeCodeForToken(code: string, installationId: number): Promise<GitHubAppUser> {
-    console.log('Exchanging code for token:', { code, installationId })
     const response = await fetch('/api/auth/github-app/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -86,7 +101,6 @@ export class GitHubAppAuthService {
     })
 
     if (!response.ok) {
-      console.error('Failed to exchange code for token:', response)
       throw new Error('Failed to exchange code for token')
     }
 
