@@ -30,6 +30,10 @@ const PRIVATE_KEY = convertPKCS1ToPKCS8(process.env.GITHUB_APP_PRIVATE_KEY!)
 const CLIENT_ID = process.env.GITHUB_APP_CLIENT_ID!
 
 function convertPKCS1ToPKCS8(pkcs1Key: string): string {
+
+  if (!pkcs1Key) {
+    throw new Error('Private key is required');
+  }
   // If it's already PKCS#8, return as-is
   if (pkcs1Key.includes('BEGIN PRIVATE KEY')) {
     return pkcs1Key
