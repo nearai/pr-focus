@@ -38,7 +38,7 @@ export class AuthService {
     const params = new URLSearchParams({
       client_id: CLIENT_ID,
       redirect_uri: `${window.location.origin}/api/auth/callback`,
-      scope: 'repo user',
+      scope: 'repo user:read',
       state: Math.random().toString(36).substring(7)
     })
     

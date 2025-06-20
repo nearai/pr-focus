@@ -42,18 +42,34 @@ function PRPageContent() {
 
     try {
       const params = new URLSearchParams({ url })
-      if (authUser?.access_token) {
-        params.append('token', authUser.access_token)
+      const installationId = searchParams.get('installation_id')
+      
+      if (installationId) {
+        // Use GitHub App API
+        params.append('installation_id', installationId)
+        const response = await fetch(`/api/github-app/pr?${params.toString()}`)
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch PR data')
+        }
+
+        setPrData(data)
+      } else {
+        // Use OAuth API
+        if (authUser?.access_token) {
+          params.append('token', authUser.access_token)
+        }
+
+        const response = await fetch(`/api/pr?${params.toString()}`)
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch PR data')
+        }
+
+        setPrData(data)
       }
-
-      const response = await fetch(`/api/pr?${params.toString()}`)
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch PR data')
-      }
-
-      setPrData(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {

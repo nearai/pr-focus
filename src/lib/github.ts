@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest'
+import { createAppAuth } from '@octokit/auth-app'
 
 export interface PRData {
   number: number
@@ -76,6 +77,21 @@ export class GitHubClient {
     this.octokit = new Octokit({
       auth: token,
     })
+  }
+
+  static createWithInstallation(installationId: number): GitHubClient {
+    const octokit = new Octokit({
+      authStrategy: createAppAuth,
+      auth: {
+        appId: process.env.NEXT_PUBLIC_GITHUB_APP_ID!,
+        privateKey: process.env.GITHUB_APP_PRIVATE_KEY!,
+        installationId: installationId,
+      },
+    })
+    
+    const client = new GitHubClient()
+    client.octokit = octokit
+    return client
   }
 
   async getPR(owner: string, repo: string, pullNumber: number): Promise<PRData> {
