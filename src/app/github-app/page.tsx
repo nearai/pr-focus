@@ -186,13 +186,6 @@ function GitHubAppContent() {
               </svg>
               <span>Install GitHub App</span>
             </button>
-            
-            <button
-              onClick={() => router.push('/')}
-              className="text-gray-500 hover:text-gray-700 transition-colors text-sm"
-            >
-              ← Back to OAuth login
-            </button>
           </div>
         </div>
       </main>

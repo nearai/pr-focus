@@ -78,6 +78,7 @@ export class GitHubAppAuthService {
   }
 
   static async exchangeCodeForToken(code: string, installationId: number): Promise<GitHubAppUser> {
+    console.log('Exchanging code for token:', { code, installationId })
     const response = await fetch('/api/auth/github-app/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -85,6 +86,7 @@ export class GitHubAppAuthService {
     })
 
     if (!response.ok) {
+      console.error('Failed to exchange code for token:', response)
       throw new Error('Failed to exchange code for token')
     }
 
