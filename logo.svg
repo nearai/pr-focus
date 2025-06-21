@@ -1,0 +1,28 @@
+<svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+    <!-- Out of focus text (top) -->
+    <text x="50%" y="180" text-anchor="middle" font-size="120"
+          font-family="'Orbitron', sans-serif" fill="#00FF84"
+          opacity="0.25" filter="url(#blur)">
+        pr-focus
+    </text>
+
+    <!-- In-focus text (bottom) -->
+    <text x="50%" y="420" text-anchor="middle" font-size="120"
+          font-family="'Orbitron', sans-serif" fill="#00FF84">
+        pr-focus
+    </text>
+
+    <!-- Subtle lens flare effect (non-animated, laser spark style) -->
+    <g opacity="0.3">
+        <circle cx="300" cy="400" r="8" fill="#FFFFFF"/>
+        <line x1="250" y1="400" x2="350" y2="400" stroke="#FFFFFF" stroke-width="1"/>
+        <line x1="300" y1="350" x2="300" y2="450" stroke="#FFFFFF" stroke-width="1"/>
+    </g>
+
+    <!-- Blur filter definition -->
+    <defs>
+        <filter id="blur" x="0" y="0">
+            <feGaussianBlur stdDeviation="4"/>
+        </filter>
+    </defs>
+</svg>

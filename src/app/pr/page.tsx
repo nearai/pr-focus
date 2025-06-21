@@ -6,6 +6,7 @@ import { PRData, PRFile, PRComment } from '@/lib/github'
 import { GitHubAppAuthService, GitHubAppUser } from '@/lib/github-app-auth'
 import DiffViewer from '@/components/DiffViewer'
 import CommentSection from '@/components/CommentSection'
+import { useChat } from 'ai/react'
 
 interface PRResponse {
   pr: PRData
@@ -21,6 +22,15 @@ function PRPageContent() {
   const [prData, setPrData] = useState<PRResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
+
+  // AI chat integration
+  const { messages, input: _input, handleInputChange: _handleInputChange, handleSubmit: handleChatSubmit, isLoading: isAiLoading } = useChat({
+    api: '/api/ai/analyze-pr',
+    onResponse: () => {
+      setAnalyzing(false)
+    }
+  })
 
   useEffect(() => {
     const storedUser = GitHubAppAuthService.getStoredAuth()
@@ -52,7 +62,7 @@ function PRPageContent() {
         url,
         installation_id: installationId.toString()
       })
-      
+
       const response = await fetch(`/api/github-app/pr?${params.toString()}`)
       const data = await response.json()
 
@@ -79,6 +89,34 @@ function PRPageContent() {
 
   const handleLogout = () => {
     GitHubAppAuthService.logout()
+  }
+
+  const handleAnalyzePR = async () => {
+    if (!prData) return
+
+    setAnalyzing(true)
+
+    // Prepare data for analysis
+    const prDescription = prData.pr.body || prData.pr.title
+    const changedFiles = prData.files.map(file => file.filename)
+
+    // Collect file changes (up to 5000 lines)
+    const fileChanges = prData.files
+      .filter(file => file.patch)
+      .map(file => `File: ${file.filename}\n${file.patch}`)
+      .join('\n\n')
+
+    // Submit for analysis using the chat API
+    const formEvent = new Event('submit') as any
+    formEvent.preventDefault = () => {}
+
+    handleChatSubmit(formEvent, {
+      data: {
+        prDescription,
+        changedFiles,
+        fileChanges
+      }
+    })
   }
 
   return (
@@ -123,9 +161,9 @@ function PRPageContent() {
           </div>
         </div>
       </div>
-      
+
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
-        
+
         <form onSubmit={handleSubmit} className="mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row gap-4">
             <input
@@ -181,7 +219,7 @@ function PRPageContent() {
                   </div>
                 </div>
               </div>
-              
+
               {prData.pr.body && (
                 <div className="prose max-w-none">
                   <div className="whitespace-pre-wrap text-gray-700">
@@ -212,6 +250,42 @@ function PRPageContent() {
               </div>
               <div className="p-4 sm:p-6">
                 <CommentSection comments={prData.comments} />
+              </div>
+            </div>
+
+            {/* AI Analysis */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  AI Analysis
+                </h3>
+                <button
+                  onClick={handleAnalyzePR}
+                  disabled={analyzing || isAiLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  {analyzing || isAiLoading ? 'Analyzing...' : 'Analyze PR'}
+                </button>
+              </div>
+              <div className="p-4 sm:p-6">
+                {messages.length > 0 ? (
+                  <div className="prose max-w-none">
+                    <div className="whitespace-pre-wrap text-gray-700">
+                      {messages[messages.length - 1].content}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-gray-500 text-center py-8">
+                    {analyzing || isAiLoading ? (
+                      <div className="flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                        <p>Analyzing PR content...</p>
+                      </div>
+                    ) : (
+                      <p>Click "Analyze PR" to get AI-powered insights about this pull request.</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
