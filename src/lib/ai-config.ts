@@ -165,6 +165,14 @@ export async function createAIStream(
       })
 
       console.log('[DEBUG] OpenAI API response status:', openaiResponse.status)
+
+      if (!openaiResponse.ok) {
+        console.error('[DEBUG] OpenAI API error:', openaiResponse.statusText)
+        const errorText = await openaiResponse.text()
+        console.error('[DEBUG] OpenAI API error details:', errorText)
+        throw new Error(`OpenAI API error: ${openaiResponse.status} ${openaiResponse.statusText}`)
+      }
+
       const openaiStream = OpenAIStream(openaiResponse)
       return new StreamingTextResponse(openaiStream)
   }

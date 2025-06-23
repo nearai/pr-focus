@@ -6,7 +6,6 @@ import { PRData, PRFile, PRComment } from '@/lib/github'
 import { GitHubAppAuthService, GitHubAppUser } from '@/lib/github-app-auth'
 import DiffViewer from '@/components/DiffViewer'
 import CommentSection from '@/components/CommentSection'
-import { useChat } from 'ai/react'
 
 interface PRResponse {
   pr: PRData
@@ -23,14 +22,8 @@ function PRPageContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
-
-  // AI chat integration
-  const { messages, input: _input, handleInputChange: _handleInputChange, handleSubmit: handleChatSubmit, isLoading: isAiLoading } = useChat({
-    api: '/api/ai/analyze-pr',
-    onResponse: () => {
-      setAnalyzing(false)
-    }
-  })
+  const [isAiLoading, setIsAiLoading] = useState(false)
+  const [aiResponse, setAiResponse] = useState<string | null>(null)
 
   useEffect(() => {
     const storedUser = GitHubAppAuthService.getStoredAuth()
@@ -46,11 +39,11 @@ function PRPageContent() {
 
   // Automatically trigger AI analysis when PR data is loaded
   useEffect(() => {
-    if (prData && !analyzing && !isAiLoading && messages.length === 0) {
+    if (prData && !analyzing && !isAiLoading && !aiResponse) {
       console.log('[DEBUG] Auto-triggering AI analysis for PR:', prData.pr.number)
       handleAnalyzePR()
     }
-  }, [prData])
+  }, [prData, analyzing, isAiLoading, aiResponse])
 
   const handleSubmitWithUrl = async (url: string, appUser: GitHubAppUser | null) => {
     if (!url.trim()) return
@@ -107,6 +100,8 @@ function PRPageContent() {
     console.log('[DEBUG] Number of files changed:', prData.files.length)
 
     setAnalyzing(true)
+    setIsAiLoading(true)
+    setAiResponse(null)
 
     // Prepare data for analysis
     const prDescription = prData.pr.body || prData.pr.title
@@ -124,18 +119,66 @@ function PRPageContent() {
       fileChangesLength: fileChanges.length
     })
 
-    // Submit for analysis using the chat API
-    const formEvent = new Event('submit') as any
-    formEvent.preventDefault = () => {}
+    const requestData = {
+      prDescription,
+      changedFiles,
+      fileChanges
+    };
 
     console.log('[DEBUG] Submitting PR for AI analysis')
-    handleChatSubmit(formEvent, {
-      data: {
-        prDescription,
-        changedFiles,
-        fileChanges
+    try {
+      // Make the API call
+      const response = await fetch('/api/ai/analyze-pr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      console.log('[DEBUG] API call response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error(`API call failed with status ${response.status}`);
       }
-    })
+
+      // Handle the streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Failed to get response reader');
+      }
+
+      // Process the stream
+      let result = '';
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Decode the chunk and append to result
+        const chunk = decoder.decode(value, { stream: true });
+        result += chunk;
+
+        // Update the UI with the current result
+        setAiResponse(result);
+      }
+
+      // Final decode
+      const finalChunk = decoder.decode();
+      if (finalChunk) {
+        result += finalChunk;
+        setAiResponse(result);
+      }
+
+      console.log('[DEBUG] AI analysis completed successfully');
+    } catch (error) {
+      console.error('[DEBUG] Error during AI analysis:', error);
+      setError('Failed to analyze PR. Please try again.');
+    } finally {
+      setAnalyzing(false);
+      setIsAiLoading(false);
+    }
   }
 
   return (
@@ -255,10 +298,10 @@ function PRPageContent() {
                 </button>
               </div>
               <div className="p-4 sm:p-6">
-                {messages.length > 0 ? (
+                {aiResponse ? (
                   <div className="prose max-w-none">
                     <div className="whitespace-pre-wrap text-gray-700">
-                      {messages[messages.length - 1].content}
+                      {aiResponse}
                     </div>
                   </div>
                 ) : (

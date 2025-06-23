@@ -7,9 +7,33 @@ const MAX_LINES = 5000
 
 export async function POST(req: NextRequest) {
   console.log('[DEBUG] Received PR analysis request')
+  console.log('[DEBUG] Request URL:', req.url)
+  console.log('[DEBUG] Request method:', req.method)
 
   try {
-    const { prDescription, changedFiles, fileChanges } = await req.json()
+    // Log the entire request body
+    const body = await req.json()
+    console.log('[DEBUG] PR analysis request body:', body)
+
+    // Extract the data from the request body
+    // The data might be in body.data, body.messages[0].content, or directly in body
+    let prDescription, changedFiles, fileChanges;
+
+    if (body.data) {
+      // Data is in body.data
+      ({ prDescription, changedFiles, fileChanges } = body.data);
+    } else if (body.messages && body.messages.length > 0 && typeof body.messages[0].content === 'string') {
+      // Data is in body.messages[0].content as a JSON string
+      try {
+        const content = JSON.parse(body.messages[0].content);
+        ({ prDescription, changedFiles, fileChanges } = content);
+      } catch (e) {
+        console.error('[DEBUG] Error parsing message content:', e);
+      }
+    } else {
+      // Data is directly in body
+      ({ prDescription, changedFiles, fileChanges } = body);
+    }
 
     console.log('[DEBUG] PR analysis request data:', {
       descriptionLength: prDescription?.length || 0,
