@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { PRData, PRFile, PRComment } from '@/lib/github'
 import { GitHubAppAuthService, GitHubAppUser } from '@/lib/github-app-auth'
 import DiffViewer from '@/components/DiffViewer'
 import CommentSection from '@/components/CommentSection'
+import AnalysisResults from '@/components/AnalysisResults'
 
 interface PRResponse {
   pr: PRData
@@ -22,8 +23,7 @@ function PRPageContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
-  const [isAiLoading, setIsAiLoading] = useState(false)
-  const [aiResponse, setAiResponse] = useState<string | null>(null)
+  const [analysisPromise, setAnalysisPromise] = useState<Promise<Response> | null>(null)
 
   useEffect(() => {
     const storedUser = GitHubAppAuthService.getStoredAuth()
@@ -39,11 +39,11 @@ function PRPageContent() {
 
   // Automatically trigger AI analysis when PR data is loaded
   useEffect(() => {
-    if (prData && !analyzing && !isAiLoading && !aiResponse) {
+    if (prData && !analyzing) {
       console.log('[DEBUG] Auto-triggering AI analysis for PR:', prData.pr.number)
       handleAnalyzePR()
     }
-  }, [prData, analyzing, isAiLoading, aiResponse])
+  }, [prData, analyzing])
 
   const handleSubmitWithUrl = async (url: string, appUser: GitHubAppUser | null) => {
     if (!url.trim()) return
@@ -100,8 +100,6 @@ function PRPageContent() {
     console.log('[DEBUG] Number of files changed:', prData.files.length)
 
     setAnalyzing(true)
-    setIsAiLoading(true)
-    setAiResponse(null)
 
     // Prepare data for analysis
     const prDescription = prData.pr.body || prData.pr.title
@@ -126,9 +124,10 @@ function PRPageContent() {
     };
 
     console.log('[DEBUG] Submitting PR for AI analysis')
+
     try {
-      // Make the API call
-      const response = await fetch('/api/ai/analyze-pr', {
+      // Create the promise for the analysis results
+      const promise = fetch('/api/ai/analyze-pr', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,39 +135,15 @@ function PRPageContent() {
         body: JSON.stringify(requestData),
       });
 
+      // Store the promise for use by AnalysisResults component
+      setAnalysisPromise(promise);
+
+      // Wait for the promise to complete to handle errors
+      const response = await promise;
       console.log('[DEBUG] API call response status:', response.status);
 
       if (!response.ok) {
         throw new Error(`API call failed with status ${response.status}`);
-      }
-
-      // Handle the streaming response
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('Failed to get response reader');
-      }
-
-      // Process the stream
-      let result = '';
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        // Decode the chunk and append to result
-        const chunk = decoder.decode(value, { stream: true });
-        result += chunk;
-
-        // Update the UI with the current result
-        setAiResponse(result);
-      }
-
-      // Final decode
-      const finalChunk = decoder.decode();
-      if (finalChunk) {
-        result += finalChunk;
-        setAiResponse(result);
       }
 
       console.log('[DEBUG] AI analysis completed successfully');
@@ -177,7 +152,6 @@ function PRPageContent() {
       setError('Failed to analyze PR. Please try again.');
     } finally {
       setAnalyzing(false);
-      setIsAiLoading(false);
     }
   }
 
@@ -283,42 +257,6 @@ function PRPageContent() {
               </div>
             </div>
 
-            {/* AI Analysis */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  AI Analysis
-                </h3>
-                <button
-                  onClick={handleAnalyzePR}
-                  disabled={analyzing || isAiLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  {analyzing || isAiLoading ? 'Analyzing...' : 'Analyze PR'}
-                </button>
-              </div>
-              <div className="p-4 sm:p-6">
-                {aiResponse ? (
-                  <div className="prose max-w-none">
-                    <div className="whitespace-pre-wrap text-gray-700">
-                      {aiResponse}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-gray-500 text-center py-8">
-                    {analyzing || isAiLoading ? (
-                      <div className="flex flex-col items-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                        <p>Analyzing PR content...</p>
-                      </div>
-                    ) : (
-                      <p>Click "Analyze PR" to get AI-powered insights about this pull request.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* PR Description */}
             <div className="bg-white rounded-lg shadow p-4 sm:p-6">
               {prData.pr.body && (
@@ -331,6 +269,38 @@ function PRPageContent() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Analysis Results */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  AI Analysis
+                </h3>
+                <button
+                  onClick={handleAnalyzePR}
+                  disabled={analyzing}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  {analyzing ? 'Analyzing...' : 'Analyze PR'}
+                </button>
+              </div>
+              <div className="p-4 sm:p-6">
+                {analysisPromise ? (
+                  <AnalysisResults analysisPromise={analysisPromise} />
+                ) : (
+                  <div className="text-gray-500 text-center py-8">
+                    {analyzing ? (
+                      <div className="flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                        <p>Analyzing PR content...</p>
+                      </div>
+                    ) : (
+                      <p>Click "Analyze PR" to get AI-powered insights about this pull request.</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Files Changed */}
