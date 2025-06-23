@@ -6,11 +6,20 @@ import { createPRAnalysisPrompt } from '@/lib/pr-prompts'
 const MAX_LINES = 5000
 
 export async function POST(req: NextRequest) {
+  console.log('[DEBUG] Received PR analysis request')
+
   try {
     const { prDescription, changedFiles, fileChanges } = await req.json()
 
+    console.log('[DEBUG] PR analysis request data:', {
+      descriptionLength: prDescription?.length || 0,
+      numChangedFiles: changedFiles?.length || 0,
+      fileChangesLength: fileChanges?.length || 0
+    })
+
     // Validate input
     if (!prDescription || !changedFiles || !fileChanges) {
+      console.log('[DEBUG] PR analysis validation failed: Missing required fields')
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -23,12 +32,16 @@ export async function POST(req: NextRequest) {
       .slice(0, MAX_LINES)
       .join('\n')
 
+    console.log('[DEBUG] Limited file changes to', MAX_LINES, 'lines')
+
     // Create the prompt
+    console.log('[DEBUG] Creating PR analysis prompt')
     const prompt = createPRAnalysisPrompt(
       prDescription,
       changedFiles,
       limitedFileChanges
     )
+    console.log('[DEBUG] PR analysis prompt created, length:', prompt.length)
 
     // Create messages for the AI
     const messages = [
@@ -43,8 +56,9 @@ export async function POST(req: NextRequest) {
     ]
 
     // Create the AI stream
+    console.log('[DEBUG] Creating AI stream for PR analysis')
     return await createAIStream(messages)
-    
+
   } catch (error) {
     console.error('Error analyzing PR:', error)
     return NextResponse.json(

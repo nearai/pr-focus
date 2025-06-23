@@ -50,27 +50,27 @@ export function getAIConfig(): AIConfig {
       return {
         provider,
         apiKey: process.env.ANTHROPIC_API_KEY || '',
-        model: process.env.ANTHROPIC_MODEL || 'claude-3-opus-20240229',
+        model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
       }
     case 'google':
       return {
         provider,
         apiKey: process.env.GOOGLE_API_KEY || '',
-        model: process.env.GOOGLE_MODEL || 'gemini-1.5-pro',
+        model: process.env.GOOGLE_MODEL || 'gemini-2.5-flash',
       }
     case 'near':
       // NEAR AI is OpenAI compatible, so we use the same stream
       return {
         provider,
         apiKey: process.env.NEAR_API_KEY || '',
-        model: process.env.NEAR_MODEL || 'near-small',
+        model: process.env.NEAR_MODEL || 'qwen3-235b-a22b',
       }
     case 'openai':
     default:
       return {
         provider: 'openai',
         apiKey: process.env.OPENAI_API_KEY || '',
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       }
   }
 }
@@ -80,8 +80,13 @@ export async function createAIStream(
   messages: any[],
   config: AIConfig = getAIConfig()
 ): Promise<Response> {
+  console.log('[DEBUG] Creating AI stream with provider:', config.provider)
+  console.log('[DEBUG] Using model:', config.model)
+  console.log('[DEBUG] Number of messages:', messages.length)
+
   switch (config.provider) {
     case 'anthropic':
+      console.log('[DEBUG] Making request to Anthropic API')
       const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -96,10 +101,12 @@ export async function createAIStream(
         }),
       })
 
+      console.log('[DEBUG] Anthropic API response status:', anthropicResponse.status)
       const anthropicStream = AnthropicStream(anthropicResponse)
       return new StreamingTextResponse(anthropicStream)
 
     case 'google':
+      console.log('[DEBUG] Making request to Google Generative AI API')
       const googleResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + config.model + ':generateContent', {
         method: 'POST',
         headers: {
@@ -117,11 +124,13 @@ export async function createAIStream(
         }),
       })
 
+      console.log('[DEBUG] Google API response status:', googleResponse.status)
       const googleStream = GoogleGenerativeAIStream(googleResponse)
       return new StreamingTextResponse(googleStream)
 
     case 'near':
       // NEAR AI is OpenAI compatible
+      console.log('[DEBUG] Making request to NEAR AI API')
       const nearResponse = await fetch('https://api.near.ai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -135,11 +144,13 @@ export async function createAIStream(
         }),
       })
 
+      console.log('[DEBUG] NEAR AI API response status:', nearResponse.status)
       const nearStream = OpenAIStream(nearResponse)
       return new StreamingTextResponse(nearStream)
 
     case 'openai':
     default:
+      console.log('[DEBUG] Making request to OpenAI API')
       const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -153,6 +164,7 @@ export async function createAIStream(
         }),
       })
 
+      console.log('[DEBUG] OpenAI API response status:', openaiResponse.status)
       const openaiStream = OpenAIStream(openaiResponse)
       return new StreamingTextResponse(openaiStream)
   }

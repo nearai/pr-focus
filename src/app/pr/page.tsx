@@ -44,6 +44,14 @@ function PRPageContent() {
     }
   }, [searchParams])
 
+  // Automatically trigger AI analysis when PR data is loaded
+  useEffect(() => {
+    if (prData && !analyzing && !isAiLoading && messages.length === 0) {
+      console.log('[DEBUG] Auto-triggering AI analysis for PR:', prData.pr.number)
+      handleAnalyzePR()
+    }
+  }, [prData])
+
   const handleSubmitWithUrl = async (url: string, appUser: GitHubAppUser | null) => {
     if (!url.trim()) return
 
@@ -94,6 +102,10 @@ function PRPageContent() {
   const handleAnalyzePR = async () => {
     if (!prData) return
 
+    console.log('[DEBUG] Starting AI analysis for PR:', prData.pr.number)
+    console.log('[DEBUG] PR title:', prData.pr.title)
+    console.log('[DEBUG] Number of files changed:', prData.files.length)
+
     setAnalyzing(true)
 
     // Prepare data for analysis
@@ -106,10 +118,17 @@ function PRPageContent() {
       .map(file => `File: ${file.filename}\n${file.patch}`)
       .join('\n\n')
 
+    console.log('[DEBUG] Prepared analysis data:', {
+      descriptionLength: prDescription.length,
+      numChangedFiles: changedFiles.length,
+      fileChangesLength: fileChanges.length
+    })
+
     // Submit for analysis using the chat API
     const formEvent = new Event('submit') as any
     formEvent.preventDefault = () => {}
 
+    console.log('[DEBUG] Submitting PR for AI analysis')
     handleChatSubmit(formEvent, {
       data: {
         prDescription,
@@ -219,38 +238,6 @@ function PRPageContent() {
                   </div>
                 </div>
               </div>
-
-              {prData.pr.body && (
-                <div className="prose max-w-none">
-                  <div className="whitespace-pre-wrap text-gray-700">
-                    {prData.pr.body}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Files Changed */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Files Changed ({prData.files.length})
-                </h3>
-              </div>
-              <div className="p-4 sm:p-6">
-                <DiffViewer files={prData.files} comments={prData.comments} />
-              </div>
-            </div>
-
-            {/* Comments */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Comments ({prData.comments.length})
-                </h3>
-              </div>
-              <div className="p-4 sm:p-6">
-                <CommentSection comments={prData.comments} />
-              </div>
             </div>
 
             {/* AI Analysis */}
@@ -286,6 +273,44 @@ function PRPageContent() {
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* PR Description */}
+            <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+              {prData.pr.body && (
+                <div className="prose max-w-none">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    PR Description
+                  </h3>
+                  <div className="whitespace-pre-wrap text-gray-700">
+                    {prData.pr.body}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Files Changed */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Files Changed ({prData.files.length})
+                </h3>
+              </div>
+              <div className="p-4 sm:p-6">
+                <DiffViewer files={prData.files} comments={prData.comments} />
+              </div>
+            </div>
+
+            {/* Comments */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Comments ({prData.comments.length})
+                </h3>
+              </div>
+              <div className="p-4 sm:p-6">
+                <CommentSection comments={prData.comments} />
               </div>
             </div>
           </div>
