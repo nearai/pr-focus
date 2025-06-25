@@ -181,7 +181,7 @@ function GitHubAppContent() {
             PR Focus GitHub App
           </h1>
           <p className="text-gray-600 mb-8">
-            Install the PR Focus GitHub App to get started with granular permissions
+            Install the PR Focus GitHub App to get started
           </p>
           
           <div className="space-y-4">

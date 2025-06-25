@@ -9,7 +9,12 @@ export default function AppFeatures() {
         <h3 className="text-xl font-semibold mb-3">AI-Powered PR Organization</h3>
         <p className="mb-4">
           It's getting easier to generate code and to review it with AI.
+          </p>
+        <p className="mb-4">
           So how should you focus your attention and make the most of those AI reviews? <b>pr-focus</b>
+        </p>
+        <p className="mb-4 italic">
+          Pr-focus uses a github app for fine-grained permissions. It stores data in local storage.
         </p>
       </div>
 
