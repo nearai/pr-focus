@@ -6,6 +6,7 @@ import { GitHubAppAuthService, GitHubAppUser, GitHubAppInstallation } from '@/li
 import { PRSummary } from '@/lib/github'
 import PRList from '@/components/PRList'
 import GitHubAppInstallations from '@/components/GitHubAppInstallations'
+import NearAiBadge from '@/components/NearAiBadge'
 
 function HomeContent() {
   const router = useRouter()
@@ -116,6 +117,9 @@ function HomeContent() {
             Loading your dashboard...
           </p>
         </div>
+        <div className="absolute top-4 right-4">
+          <NearAiBadge />
+        </div>
       </main>
     )
   }
@@ -146,6 +150,7 @@ function HomeContent() {
                 >
                   Logout
                 </button>
+                <NearAiBadge />
               </div>
             </div>
           </div>
@@ -192,6 +197,9 @@ function HomeContent() {
               >
                 Logout
               </button>
+              <div className="ml-4 flex flex-col items-center">
+                <NearAiBadge />
+              </div>
             </div>
           </div>
         </div>

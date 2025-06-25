@@ -7,7 +7,10 @@ import { GitHubAppAuthService, GitHubAppUser } from '@/lib/github-app-auth'
 import DiffViewer from '@/components/DiffViewer'
 import CommentSection from '@/components/CommentSection'
 import AnalysisResults from '@/components/AnalysisResults'
+import NearAiBadge from '@/components/NearAiBadge'
 import yaml from 'js-yaml'
+import Link from "next/link";
+import Image from "next/image";
 
 
 function extractYamlContent(text: string): string {
@@ -311,7 +314,7 @@ function PRPageContent() {
               >
                 ← Back to Dashboard
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">PR Reviewer</h1>
+              <h1 className="text-2xl font-bold text-gray-900">PR Focus</h1>
             </div>
             {user ? (
               <div className="flex items-center space-x-4">
@@ -329,14 +332,18 @@ function PRPageContent() {
                 >
                   Logout
                 </button>
+                <NearAiBadge />
               </div>
             ) : (
-              <button
-                onClick={handleConnectGitHub}
-                className="bg-gray-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 transition-colors text-sm"
-              >
-                Connect GitHub App
-              </button>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={handleConnectGitHub}
+                  className="bg-gray-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-gray-800 transition-colors text-sm"
+                >
+                  Connect GitHub App
+                </button>
+                <NearAiBadge />
+              </div>
             )}
           </div>
         </div>

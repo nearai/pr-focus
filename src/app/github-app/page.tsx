@@ -7,6 +7,7 @@ import { PRSummary } from '@/lib/github'
 import PRList from '@/components/PRList'
 import GitHubAppInstallations from '@/components/GitHubAppInstallations'
 import AppFeatures from '@/components/AppFeatures'
+import NearAiBadge from '@/components/NearAiBadge'
 
 function GitHubAppContent() {
   const router = useRouter()
@@ -162,6 +163,9 @@ function GitHubAppContent() {
             Loading...
           </p>
         </div>
+        <div className="absolute top-4 right-4">
+          <NearAiBadge />
+        </div>
       </main>
     )
   }
@@ -169,6 +173,9 @@ function GitHubAppContent() {
   if (!appUser) {
     return (
       <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="absolute top-4 right-4">
+          <NearAiBadge />
+        </div>
         <div className="max-w-4xl mx-auto text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
             PR Focus GitHub App
@@ -219,6 +226,7 @@ function GitHubAppContent() {
                 >
                   Logout
                 </button>
+                <NearAiBadge />
               </div>
             </div>
           </div>
@@ -265,6 +273,7 @@ function GitHubAppContent() {
               >
                 Logout
               </button>
+              <NearAiBadge />
             </div>
           </div>
         </div>
