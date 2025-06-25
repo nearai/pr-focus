@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 // Define interfaces for the analysis results structure
 interface AnalysisHunk {
@@ -20,9 +20,11 @@ interface AnalysisResult {
 
 // Props for the component
 interface AnalysisResultsProps {
-  analysisPromise?: Promise<Response>
-  prData?: any
+  results: AnalysisResult | null
+  loading: boolean
+  error: string | null
 }
+
 
 // This helper component will display a single change group with collapsible files
 function ChangeGroup({ change }: { change: AnalysisChange }) {
@@ -115,93 +117,7 @@ function LoadingSpinner() {
   )
 }
 
-export default function AnalysisResults({ analysisPromise, prData }: AnalysisResultsProps) {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [results, setResults] = useState<AnalysisResult | null>(null)
-  const [rawResponse, setRawResponse] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!analysisPromise) {
-      setLoading(false)
-      return
-    }
-
-    let isMounted = true
-
-    const fetchResults = async () => {
-      try {
-        // Wait for the promise to resolve
-        const response = await analysisPromise
-
-        if (!isMounted) return
-
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`)
-        }
-
-        // Handle the streaming response
-        const reader = response.body?.getReader()
-        if (!reader) {
-          throw new Error('Failed to get response reader')
-        }
-
-        // Process the stream
-        let result = ''
-        const decoder = new TextDecoder()
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          // Decode the chunk and append to result
-          const chunk = decoder.decode(value, { stream: true })
-          result += chunk
-
-          // Store the raw response
-          setRawResponse(result)
-        }
-
-        // Final decode
-        const finalChunk = decoder.decode()
-        if (finalChunk) {
-          result += finalChunk
-          setRawResponse(result)
-        }
-
-        // After the streaming is complete, try to parse the result as JSON
-        try {
-          const jsonData = JSON.parse(result)
-          setResults(formatAnalysisResults(jsonData))
-        } catch (jsonError) {
-          console.error('Failed to parse JSON:', jsonError)
-          throw new Error('Invalid response format. Expected JSON.')
-        }
-
-        setLoading(false)
-      } catch (err) {
-        if (!isMounted) return
-        setError(err instanceof Error ? err.message : 'An error occurred')
-        setLoading(false)
-      }
-    }
-
-    fetchResults()
-
-    return () => {
-      isMounted = false
-    }
-  }, [analysisPromise])
-
-  // Format the analysis results
-  const formatAnalysisResults = (data: any): AnalysisResult => {
-    // Ensure the data has the expected structure
-    if (!data.summary || !Array.isArray(data.changes)) {
-      throw new Error('Invalid analysis results format')
-    }
-
-    return data as AnalysisResult
-  }
+export default function AnalysisResults({ results, loading, error }: AnalysisResultsProps) {
 
   if (loading) {
     return <LoadingSpinner />
@@ -218,16 +134,7 @@ export default function AnalysisResults({ analysisPromise, prData }: AnalysisRes
   if (!results) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded">
-        {rawResponse ? (
-          <div>
-            <p className="mb-2">Raw response received but couldn't be parsed as valid analysis results:</p>
-            <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto bg-gray-50 p-3 rounded mt-2">
-              {rawResponse}
-            </pre>
-          </div>
-        ) : (
-          <p>No analysis results available</p>
-        )}
+        <p>No analysis results available</p>
       </div>
     )
   }
@@ -240,7 +147,7 @@ export default function AnalysisResults({ analysisPromise, prData }: AnalysisRes
       </div>
 
       <h3 className="font-medium text-lg mt-6 mb-3">Key Changes</h3>
-      {results.changes.map((change, index) => (
+      {results.changes && results.changes.map((change, index) => (
         <ChangeGroup key={index} change={change} />
       ))}
     </div>

@@ -23,7 +23,7 @@ export default function GitHubAppInstallations({
           You need to install the PR Focus app to your repositories first.
         </p>
         <a
-          href="https://github.com/apps/pr-focus/installations/new"
+          href={`https://github.com/apps/pr-focus/installations/new?redirect_uri=${encodeURIComponent(process.env.NEXT_SITE_URL || 'http://localhost:3001')}/api/auth/github/callback`}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors inline-block"
         >
           Install GitHub App

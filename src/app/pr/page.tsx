@@ -7,6 +7,43 @@ import { GitHubAppAuthService, GitHubAppUser } from '@/lib/github-app-auth'
 import DiffViewer from '@/components/DiffViewer'
 import CommentSection from '@/components/CommentSection'
 import AnalysisResults from '@/components/AnalysisResults'
+import yaml from 'js-yaml'
+
+
+function extractYamlContent(text: string): string {
+  // Look for YAML content markers like ```yaml or ---
+  const yamlBlockRegex = /```(?:yaml)?\s*([\s\S]*?)(?:```|$)/;
+  const yamlMatch = yamlBlockRegex.exec(text);
+  if (yamlMatch) {
+    return yamlMatch[1].trim();
+  }
+
+  // Try to find content between --- markers (common YAML format)
+  const yamlDocumentRegex = /^---\s*$([\s\S]*?)^---\s*$/m;
+  const yamlDocMatch = yamlDocumentRegex.exec(text);
+  if (yamlDocMatch) {
+    return yamlDocMatch[1].trim();
+  }
+
+  // If no markers found, assume the entire text is YAML
+  return text;
+}
+
+// Define interfaces for the analysis results structure
+interface AnalysisHunk {
+  file: string
+  diff: string
+}
+
+interface AnalysisChange {
+  label: string
+  hunks: AnalysisHunk[]
+}
+
+interface AnalysisResult {
+  summary: string
+  changes: AnalysisChange[]
+}
 
 interface PRResponse {
   pr: PRData
@@ -23,7 +60,21 @@ function PRPageContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
-  const [analysisPromise, setAnalysisPromise] = useState<Promise<Response> | null>(null)
+  const [analysisPromise, setAnalysisPromise] = useState<Promise<Response> | undefined>(undefined)
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResult | null>(null)
+  const [analysisError, setAnalysisError] = useState<string>('')
+  const analysisTriggeredForCurrentPR = useRef(false)
+
+  // Format the analysis results
+  const formatAnalysisResults = (data: any): AnalysisResult => {
+    // Ensure the data has the expected structure
+    if (!data.summary || !Array.isArray(data.changes)) {
+      throw new Error('Invalid analysis results format')
+    }
+
+    console.log('Formatted analysis results:', data.summary)
+    return data as AnalysisResult
+  }
 
   useEffect(() => {
     const storedUser = GitHubAppAuthService.getStoredAuth()
@@ -39,11 +90,19 @@ function PRPageContent() {
 
   // Automatically trigger AI analysis when PR data is loaded
   useEffect(() => {
-    if (prData && !analyzing) {
-      console.log('[DEBUG] Auto-triggering AI analysis for PR:', prData.pr.number)
-      handleAnalyzePR()
-    }
-  }, [prData, analyzing])
+    // Only run this effect when prData changes
+    if (!prData) return;
+
+    // Skip if we're already analyzing or have triggered analysis for this PR
+    if (analyzing || analysisTriggeredForCurrentPR.current) return;
+
+    // If we have a promise or results, we've already initiated analysis
+    if (analysisPromise || analysisResults) return;
+
+    console.log('[DEBUG] Auto-triggering AI analysis for PR:', prData.pr.number);
+    analysisTriggeredForCurrentPR.current = true;
+    handleAnalyzePR(false); // false means don't force a new analysis
+  }, [prData])
 
   const handleSubmitWithUrl = async (url: string, appUser: GitHubAppUser | null) => {
     if (!url.trim()) return
@@ -57,6 +116,11 @@ function PRPageContent() {
 
     setLoading(true)
     setError('')
+    // Reset analysis state when loading a new PR
+    analysisTriggeredForCurrentPR.current = false;
+    setAnalysisPromise(undefined);
+    setAnalysisResults(null);
+    setAnalysisError('');
 
     try {
       const params = new URLSearchParams({ 
@@ -92,14 +156,49 @@ function PRPageContent() {
     GitHubAppAuthService.logout()
   }
 
-  const handleAnalyzePR = async () => {
+  const handleAnalyzePR = async (forceNewAnalysis = true) => {
     if (!prData) return
+
+    // Prevent initiating another analysis if one is already in progress
+    if (analyzing && !forceNewAnalysis) {
+      console.log('[DEBUG] Analysis already in progress, not starting another one')
+      return
+    }
 
     console.log('[DEBUG] Starting AI analysis for PR:', prData.pr.number)
     console.log('[DEBUG] PR title:', prData.pr.title)
     console.log('[DEBUG] Number of files changed:', prData.files.length)
 
-    setAnalyzing(true)
+    // Get the commit SHA from the PR data
+    const commitSha = prData.pr.head.sha;
+    console.log('[DEBUG] Commit SHA:', commitSha);
+
+    // Check if we have cached results for this commit SHA
+    if (!forceNewAnalysis) {
+      try {
+        const cachedDataString = localStorage.getItem(`pr-analysis-${commitSha}`);
+        if (cachedDataString) {
+          try {
+            const cachedData = JSON.parse(cachedDataString);
+            console.log('[DEBUG] Found cached analysis results for commit:', commitSha);
+
+            // Use the cached results
+            setAnalysisResults(cachedData);
+            analysisTriggeredForCurrentPR.current = true;
+            return;
+          } catch (parseError) {
+            console.error('[DEBUG] Error parsing cached data:', parseError);
+            // Continue with the analysis if there's an error parsing the cached data
+          }
+        }
+      } catch (error) {
+        console.error('[DEBUG] Error reading from local storage:', error);
+        // Continue with the analysis if there's an error reading from local storage
+      }
+    }
+
+    setAnalyzing(true);
+    setAnalysisError('');
 
     // Prepare data for analysis
     const prDescription = prData.pr.body || prData.pr.title
@@ -135,23 +234,67 @@ function PRPageContent() {
         body: JSON.stringify(requestData),
       });
 
+      // Mark that we've triggered analysis for this PR
+      analysisTriggeredForCurrentPR.current = true;
+
       // Store the promise for use by AnalysisResults component
       setAnalysisPromise(promise);
+      // Clear any previous results when starting a new analysis
+      if (forceNewAnalysis) {
+        setAnalysisResults(null);
+      }
 
       // Wait for the promise to complete to handle errors
       const response = await promise;
       console.log('[DEBUG] API call response status:', response.status);
 
       if (!response.ok) {
-        throw new Error(`API call failed with status ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`API call failed with status ${response.status}: ${errorText}`);
       }
 
-      console.log('[DEBUG] AI analysis completed successfully');
+      // Clone the response to read it twice (once for error handling, once for the AnalysisResults component)
+      const responseClone = response.clone();
+
+      // Read and parse the response
+      const responseText = await responseClone.text();
+      try {
+        // Check if the response contains an error message
+        if (responseText.toLowerCase().includes('error') &&
+           (responseText.toLowerCase().includes('analysis') || responseText.toLowerCase().includes('fail'))) {
+          throw new Error(responseText);
+        }
+
+        // Parse the response
+        const json = JSON.parse(responseText);
+        const content = json.content || json.data || json;
+        const message = content.choices?.[0]?.message?.content || content.choices?.[0]?.text || content;
+
+        console.log('[DEBUG] Raw content to parse:', message);
+        const cleanedYamlText = extractYamlContent(message);
+        console.log('[DEBUG] Extracted YAML content:', cleanedYamlText);
+
+        const yamlData = yaml.load(cleanedYamlText);
+        const formattedResults = formatAnalysisResults(yamlData);
+
+        // Store the formatted results in local storage
+        localStorage.setItem(`pr-analysis-${commitSha}`, JSON.stringify(formattedResults));
+        console.log('[DEBUG] Stored formatted analysis results in local storage for commit:', commitSha);
+
+        // Update the state with the formatted results
+        setAnalysisResults(formattedResults);
+
+        console.log('[DEBUG] AI analysis completed successfully');
+      } catch (jsonError) {
+        console.error('[DEBUG] Error in analysis response:', jsonError);
+        setAnalysisError(jsonError instanceof Error ? jsonError.message : 'Invalid analysis response');
+      }
     } catch (error) {
       console.error('[DEBUG] Error during AI analysis:', error);
-      setError('Failed to analyze PR. Please try again.');
+      setAnalysisError(error instanceof Error ? error.message : 'Failed to analyze PR. Please try again.');
     } finally {
       setAnalyzing(false);
+      // Note: We intentionally DO NOT reset analysisPromise here to prevent re-triggering useEffect
     }
   }
 
@@ -278,27 +421,36 @@ function PRPageContent() {
                   AI Analysis
                 </h3>
                 <button
-                  onClick={handleAnalyzePR}
+                  onClick={() => handleAnalyzePR()}
                   disabled={analyzing}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
-                  {analyzing ? 'Analyzing...' : 'Analyze PR'}
+                  {analyzing ? 'Analyzing...' : 'Re-Analyze PR'}
                 </button>
               </div>
               <div className="p-4 sm:p-6">
-                {analysisPromise ? (
-                  <AnalysisResults analysisPromise={analysisPromise} />
-                ) : (
-                  <div className="text-gray-500 text-center py-8">
-                    {analyzing ? (
-                      <div className="flex flex-col items-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                        <p>Analyzing PR content...</p>
-                      </div>
-                    ) : (
-                      <p>Click "Analyze PR" to get AI-powered insights about this pull request.</p>
-                    )}
+                {analysisError ? (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
+                    <p className="font-medium mb-1">Error in AI analysis:</p>
+                    <p className="whitespace-pre-wrap">{analysisError}</p>
                   </div>
+                ) : analyzing && !analysisResults ? (
+                  <div className="text-gray-500 text-center py-8">
+                    <div className="flex flex-col items-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                      <p>Analyzing PR content...</p>
+                    </div>
+                  </div>
+                ) : !analysisResults && !analyzing ? (
+                  <div className="text-gray-500 text-center py-8">
+                    <p>Click "Analyze PR" to get AI-powered insights about this pull request.</p>
+                  </div>
+                ) : (
+                  <AnalysisResults
+                    results={analysisResults}
+                    loading={false}
+                    error={null}
+                  />
                 )}
               </div>
             </div>

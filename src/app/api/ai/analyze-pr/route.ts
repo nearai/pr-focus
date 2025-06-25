@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAIStream } from '@/lib/ai-config'
-import { createPRAnalysisPrompt } from '@/lib/pr-prompts'
+import { createAIResponse } from '@/lib/ai-config'
+import { createPRAnalysisPrompt, systemPrompt } from '@/lib/pr-prompts'
 
 // Maximum number of lines to include in the analysis
-const MAX_LINES = 5000
+const MAX_LINES = 50000
 
 export async function POST(req: NextRequest) {
   console.log('[DEBUG] Received PR analysis request')
@@ -17,28 +17,36 @@ export async function POST(req: NextRequest) {
 
     // Extract the data from the request body
     // The data might be in body.data, body.messages[0].content, or directly in body
-    let prDescription, changedFiles, fileChanges;
+    let prDescription, changedFiles, fileChanges, stream
 
     if (body.data) {
       // Data is in body.data
-      ({ prDescription, changedFiles, fileChanges } = body.data);
-    } else if (body.messages && body.messages.length > 0 && typeof body.messages[0].content === 'string') {
+      ;({ prDescription, changedFiles, fileChanges, stream } = body.data)
+    } else if (
+      body.messages &&
+      body.messages.length > 0 &&
+      typeof body.messages[0].content === 'string'
+    ) {
       // Data is in body.messages[0].content as a JSON string
       try {
-        const content = JSON.parse(body.messages[0].content);
-        ({ prDescription, changedFiles, fileChanges } = content);
+        const content = JSON.parse(body.messages[0].content)
+        ;({ prDescription, changedFiles, fileChanges, stream } = content)
       } catch (e) {
-        console.error('[DEBUG] Error parsing message content:', e);
+        console.error('[DEBUG] Error parsing message content:', e)
       }
     } else {
       // Data is directly in body
-      ({ prDescription, changedFiles, fileChanges } = body);
+      ;({ prDescription, changedFiles, fileChanges, stream } = body)
     }
+
+    // Default stream to false if not provided
+    const useStream = stream === true
 
     console.log('[DEBUG] PR analysis request data:', {
       descriptionLength: prDescription?.length || 0,
       numChangedFiles: changedFiles?.length || 0,
-      fileChangesLength: fileChanges?.length || 0
+      fileChangesLength: fileChanges?.length || 0,
+      stream: useStream,
     })
 
     // Validate input
@@ -71,7 +79,7 @@ export async function POST(req: NextRequest) {
     const messages = [
       {
         role: 'system',
-        content: 'You are an expert code reviewer providing analysis of pull requests.',
+        content: systemPrompt,
       },
       {
         role: 'user',
@@ -81,8 +89,7 @@ export async function POST(req: NextRequest) {
 
     // Create the AI stream
     console.log('[DEBUG] Creating AI stream for PR analysis')
-    return await createAIStream(messages)
-
+    return await createAIResponse(messages, useStream)
   } catch (error) {
     console.error('Error analyzing PR:', error)
     return NextResponse.json(

@@ -1,5 +1,7 @@
 // PR analysis prompts
 
+export const systemPrompt = "You are an expert code reviewer analyzing a GitHub pull request. Your goal is to re-organize the changes in the pull request so that logical changes are together regardless of which file they occurred in."
+
 /**
  * Prompt for analyzing a pull request
  * @param prDescription - The description of the pull request
@@ -13,10 +15,6 @@ export function createPRAnalysisPrompt(
   fileChanges: string
 ): string {
   return `
-You are an expert code reviewer analyzing a GitHub pull request. 
-Your goal is to re-organize the changes in the pull request so that logical changes are together regardless of which
-file they occurred in.
-
 ## PR Description
 ${prDescription}
 
@@ -30,48 +28,81 @@ ${fileChanges}
 
 Your analysis should be thorough but concise, focusing on the most important aspects of the code changes.
 All hunks in the file changes should be included in the output.
-Based on the above information, please output only a JSON object with the following structure:
-\`\`\`json
-{
-  "summary": "A brief summary of the changes made in the PR",
-  "changes": [
-    {"label": "Key point 1 about the changes", "hunks": ["RELEVANT_HUNK_IN_DIFF_FORMAT", "ANOTHER_RELEVANT_HUNK_IN_DIFF_FORMAT"], },
-    {"label": "Key point 2 about the changes", "hunks": ["RELEVANT_HUNK_IN_DIFF_FORMAT", "ANOTHER_RELEVANT_HUNK_IN_DIFF_FORMAT"], },
-  ],
-}
+Based on the above information, please output only a single YAML object with the following structure:
+\`\`\`yaml
+summary: A brief summary of the changes made in the PR
+changes:
+  - label: Key point 1 about the changes
+    hunks:
+      - file: FILENAME
+        diff: |
+          RELEVANT_HUNK_IN_DIFF_FORMAT
+      - file: ANOTHER_FILENAME
+        diff: |
+          ANOTHER_RELEVANT_HUNK_IN_DIFF_FORMAT
+  - label: Key point 2 about the changes
+    hunks:
+      - file: FILENAME
+        diff: |
+          RELEVANT_HUNK_IN_DIFF_FORMAT
 \`\`\`
 
 For example:
-\`\`\`json
-{
-  "summary": "Refactored user authentication flow and improved error handling",
-  "changes": [
-    {
-      "label": "User authentication refactor",
-      "hunks": [
-        {
-          "file": "src/services/authService.js", 
-          "diff": "@@ -10,7 +10,7 @@ class AuthService {\n   * Authenticates a user with credentials\n   * @param {Object} credentials - User login credentials\n   */\n-  authenticate(credentials) {\n+  login(credentials) {\n     const { username, password } = credentials;\n     return this.validateUser(username, password);\n   }"
-        },
-        {
-          "file": "src/controllers/userController.js", 
-          "diff": "@@ -45,6 +45,8 @@ export function initAuth() {\n   // Initialize authentication module\n-  const auth = new AuthService();\n-  return auth.authenticate;\n+  const authService = new AuthService();\n+  // Use the new login method instead of authenticate\n+  return authService.login;\n "
-         }
-      ]
-    },
-    {
-      "label": "Improved error handling",
-      "hunks": [
-        {
-          "file": "src/controllers/userController.js", 
-          "diff": "@@ -15,7 +15,11 @@ class UserController {\n   * Processes user input and validates it\n   * @param {Object} formData - User submitted data\n   */\n-  processFormSubmission(formData) {\n+  processFormSubmission(formData) {\n+    // Added validation before processing\n+    if (!this.validateInput(formData)) {\n+      throw new Error('Invalid form data');\n+    }\n     return this.submitToAPI(formData);\n   }"
-       },
-        {
-          "file": "src/lib/logger.js", 
-          "diff": "@@ -120,10 +120,6 @@ export function initializeLogger() {\n   // Configure logger settings\n   const logger = new Logger();\n   \n-  // Legacy debug mode - to be removed\n-  if (process.env.DEBUG_MODE) {\n-    logger.enableVerboseLogging();\n-  }\n   \n   return logger;\n }"
-        }
-    }
-  ]
-}
+\`\`\`yaml
+summary: Refactored user authentication flow and improved error handling
+changes:
+  - label: User authentication refactor
+    hunks:
+      - file: src/services/authService.js
+        diff: |
+          @@ -10,7 +10,7 @@ class AuthService {
+             * Authenticates a user with credentials
+             * @param {Object} credentials - User login credentials
+             */
+          -  authenticate(credentials) {
+          +  login(credentials) {
+               const { username, password } = credentials;
+               return this.validateUser(username, password);
+             }
+      - file: src/controllers/userController.js
+        diff: |
+          @@ -45,6 +45,8 @@ export function initAuth() {
+             // Initialize authentication module
+          -  const auth = new AuthService();
+          -  return auth.authenticate;
+          +  const authService = new AuthService();
+          +  // Use the new login method instead of authenticate
+          +  return authService.login;
+  - label: Improved error handling
+    hunks:
+      - file: src/controllers/userController.js
+        diff: |
+          @@ -15,7 +15,11 @@ class UserController {
+             * Processes user input and validates it
+             * @param {Object} formData - User submitted data
+             */
+          -  processFormSubmission(formData) {
+          +  processFormSubmission(formData) {
+          +    // Added validation before processing
+          +    if (!this.validateInput(formData)) {
+          +      throw new Error('Invalid form data');
+          +    }
+               return this.submitToAPI(formData);
+             }
+      - file: src/lib/logger.js
+        diff: |
+          @@ -120,10 +120,6 @@ export function initializeLogger() {
+             // Configure logger settings
+             const logger = new Logger();
+             
+          -  // Legacy debug mode - to be removed
+          -  if (process.env.DEBUG_MODE) {
+          -    logger.enableVerboseLogging();
+          -  }
+             
+             return logger;
+           }
+\`\`\`
+Only respond with the YAML object, do not include any additional text or explanations.
 `;
 }

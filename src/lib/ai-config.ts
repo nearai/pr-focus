@@ -75,105 +75,108 @@ export function getAIConfig(): AIConfig {
   }
 }
 
-// Create a streaming response based on the configured provider
+// Create a streaming or non-streaming response based on the configured provider
+export async function createAIResponse(
+  messages: any[],
+  stream: boolean,
+  config: AIConfig = getAIConfig()
+): Promise<Response> {
+  console.log('[DEBUG] Creating AI response with provider and model:', config.provider, config.model)
+
+  let url: string
+  let headers: Record<string, string>
+  let body: Record<string, any>
+
+  switch (config.provider) {
+    case 'anthropic':
+      url = 'https://api.anthropic.com/v1/messages'
+      headers = {
+        'Content-Type': 'application/json',
+        'x-api-key': config.apiKey,
+        'anthropic-version': '2023-06-01',
+      }
+      body = {
+        model: config.model,
+        messages,
+        stream,
+      }
+      break
+    case 'google':
+      url = `https://generativelanguage.googleapis.com/v1beta/models/${
+        config.model
+      }:${stream ? 'streamGenerateContent' : 'generateContent'}`
+      headers = {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': config.apiKey,
+      }
+      body = {
+        contents: messages.map(message => ({
+          role: message.role,
+          parts: [{ text: message.content }],
+        })),
+        generationConfig: {
+          temperature: 0.7,
+        },
+      }
+      break
+    case 'near':
+      url = 'https://api.near.ai/v1/chat/completions'
+      headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.apiKey}`,
+      }
+      body = {
+        model: config.model,
+        messages,
+        stream,
+      }
+      break
+    case 'openai':
+    default:
+      url = 'https://api.openai.com/v1/chat/completions'
+      headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.apiKey}`,
+      }
+      body = {
+        model: config.model,
+        messages,
+        stream,
+      }
+      break
+  }
+
+  console.log(`[DEBUG] Making request to ${url}`)
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  })
+  console.log(`[DEBUG] API response status: ${response.status}`)
+
+  if (stream) {
+    switch (config.provider) {
+      case 'anthropic':
+        return new StreamingTextResponse(AnthropicStream(response))
+      case 'google':
+        return new StreamingTextResponse(GoogleGenerativeAIStream(response))
+      case 'near':
+      case 'openai':
+      default:
+        return new StreamingTextResponse(OpenAIStream(response))
+    }
+  } else {
+    // In a non-streaming response, just return the JSON
+    const json = await response.json()
+    return new Response(JSON.stringify(json), {
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+}
+
 export async function createAIStream(
   messages: any[],
   config: AIConfig = getAIConfig()
 ): Promise<Response> {
-  console.log('[DEBUG] Creating AI stream with provider:', config.provider)
-  console.log('[DEBUG] Using model:', config.model)
-  console.log('[DEBUG] Number of messages:', messages.length)
-
-  switch (config.provider) {
-    case 'anthropic':
-      console.log('[DEBUG] Making request to Anthropic API')
-      const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': config.apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: config.model,
-          messages,
-          stream: true,
-        }),
-      })
-
-      console.log('[DEBUG] Anthropic API response status:', anthropicResponse.status)
-      const anthropicStream = AnthropicStream(anthropicResponse)
-      return new StreamingTextResponse(anthropicStream)
-
-    case 'google':
-      console.log('[DEBUG] Making request to Google Generative AI API')
-      const googleResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + config.model + ':generateContent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': config.apiKey,
-        },
-        body: JSON.stringify({
-          contents: messages.map(message => ({
-            role: message.role,
-            parts: [{ text: message.content }],
-          })),
-          generationConfig: {
-            temperature: 0.7,
-          },
-        }),
-      })
-
-      console.log('[DEBUG] Google API response status:', googleResponse.status)
-      const googleStream = GoogleGenerativeAIStream(googleResponse)
-      return new StreamingTextResponse(googleStream)
-
-    case 'near':
-      // NEAR AI is OpenAI compatible
-      console.log('[DEBUG] Making request to NEAR AI API')
-      const nearResponse = await fetch('https://api.near.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: config.model,
-          messages,
-          stream: true,
-        }),
-      })
-
-      console.log('[DEBUG] NEAR AI API response status:', nearResponse.status)
-      const nearStream = OpenAIStream(nearResponse)
-      return new StreamingTextResponse(nearStream)
-
-    case 'openai':
-    default:
-      console.log('[DEBUG] Making request to OpenAI API')
-      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: config.model,
-          messages,
-          stream: true,
-        }),
-      })
-
-      console.log('[DEBUG] OpenAI API response status:', openaiResponse.status)
-
-      if (!openaiResponse.ok) {
-        console.error('[DEBUG] OpenAI API error:', openaiResponse.statusText)
-        const errorText = await openaiResponse.text()
-        console.error('[DEBUG] OpenAI API error details:', errorText)
-        throw new Error(`OpenAI API error: ${openaiResponse.status} ${openaiResponse.statusText}`)
-      }
-
-      const openaiStream = OpenAIStream(openaiResponse)
-      return new StreamingTextResponse(openaiStream)
-  }
+  return createAIResponse(messages, true, config)
 }
