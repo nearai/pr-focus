@@ -6,6 +6,7 @@ import { GitHubAppAuthService, GitHubAppUser, GitHubAppInstallation } from '@/li
 import { PRSummary } from '@/lib/github'
 import PRList from '@/components/PRList'
 import GitHubAppInstallations from '@/components/GitHubAppInstallations'
+import AppFeatures from '@/components/AppFeatures'
 
 function GitHubAppContent() {
   const router = useRouter()
@@ -167,8 +168,8 @@ function GitHubAppContent() {
 
   if (!appUser) {
     return (
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-md mx-auto text-center">
+      <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="max-w-4xl mx-auto text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
             PR Focus GitHub App
           </h1>
@@ -187,6 +188,10 @@ function GitHubAppContent() {
               <span>Install GitHub App</span>
             </button>
           </div>
+        </div>
+
+        <div className="w-full max-w-6xl">
+          <AppFeatures />
         </div>
       </main>
     )
