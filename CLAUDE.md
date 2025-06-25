@@ -42,7 +42,7 @@ The app allows users to enter a GitHub PR URL and displays comprehensive PR info
 
 ## Environment Variables
 
-The app requires a `GITHUB_TOKEN` environment variable for GitHub API authentication. This should be set in a `.env.local` file (not tracked in git).
+The app requires several environment variables for configuration which can be found in .env.example.
 
 ## TypeScript Configuration
 

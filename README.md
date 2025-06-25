@@ -2,14 +2,25 @@
 
 PR Review app for the Age of AI. This application helps you review GitHub pull requests with the assistance of AI.
 
+Use at https://pr-focus.vercel.app/
+
 ## Features
 
 - Connect to GitHub using GitHub App authentication
 - View pull request details, files changed, and comments
 - AI-powered analysis of pull requests
 - Support for multiple AI providers (OpenAI, Anthropic, Google, NEAR AI)
+- Only stores data locally in local storage: 
+    - cached analysis results
 
-## Getting Started
+## Overview
+The goal of this project is not to perform the PR reviews themselves but to organize AI reviews.
+
+### Planned Features
+ - Organize Copilot and Claude reviews, track actionable items.
+ - Extract expected behavior from linked Issues, organize the analysis around the expected behavior.
+
+## Development
 
 ### Prerequisites
 
