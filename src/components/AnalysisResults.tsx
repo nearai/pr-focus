@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import DiffViewer from './DiffViewer'
+import { PRFile } from '@/lib/github'
 
 // Define interfaces for the analysis results structure
 interface AnalysisHunk {
@@ -25,19 +27,65 @@ interface AnalysisResultsProps {
   error: string | null
 }
 
+// Convert analysis hunks to PRFile format for DiffViewer
+function convertHunksToPRFiles(hunks: AnalysisHunk[]): PRFile[] {
+  // Group hunks by filename
+  const fileGroups = hunks.reduce((groups: Record<string, AnalysisHunk[]>, hunk) => {
+    if (!groups[hunk.file]) {
+      groups[hunk.file] = [];
+    }
+    groups[hunk.file].push(hunk);
+    return groups;
+  }, {});
+
+  // Convert to PRFile format
+  return Object.entries(fileGroups).map(([filename, fileHunks]) => {
+    // Prepare the combined patch
+    let combinedPatch = '';
+
+    fileHunks.forEach(hunk => {
+      // Check if the diff already has a proper unified diff header
+      const hasHeader = /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/.test(hunk.diff);
+
+      // If no header, add a basic one to ensure the DiffViewer can parse it
+      if (!hasHeader) {
+        // Count the number of lines in the diff
+        const lines = hunk.diff.split('\n');
+        const addedLines = lines.filter(line => line.startsWith('+')).length;
+        const removedLines = lines.filter(line => line.startsWith('-')).length;
+        const lineCount = Math.max(addedLines, removedLines);
+
+        // Create a simple header (starting at line 1)
+        combinedPatch += `@@ -1,${lineCount} +1,${lineCount} @@\n`;
+      }
+
+      combinedPatch += hunk.diff + '\n';
+    });
+
+    // Count additions and deletions
+    const additions = (combinedPatch.match(/^\+/gm) || []).length;
+    const deletions = (combinedPatch.match(/^-/gm) || []).length;
+
+    return {
+      filename,
+      patch: combinedPatch,
+      status: 'modified', // Default status
+      additions,
+      deletions,
+      changes: additions + deletions,
+      sha: '', // Not needed for display purposes
+      contents_url: '',
+      raw_url: ''
+    };
+  });
+}
 
 // This helper component will display a single change group with collapsible files
 function ChangeGroup({ change }: { change: AnalysisChange }) {
   const [isExpanded, setIsExpanded] = useState(false)
 
-  // Group hunks by file
-  const fileGroups = change.hunks.reduce((groups: Record<string, AnalysisHunk[]>, hunk) => {
-    if (!groups[hunk.file]) {
-      groups[hunk.file] = []
-    }
-    groups[hunk.file].push(hunk)
-    return groups
-  }, {})
+  // Convert hunks to PRFile format for the DiffViewer
+  const files = convertHunksToPRFiles(change.hunks);
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
@@ -59,48 +107,8 @@ function ChangeGroup({ change }: { change: AnalysisChange }) {
       </div>
 
       {isExpanded && (
-        <div className="bg-white">
-          {Object.entries(fileGroups).map(([file, hunks], index) => (
-            <FileGroup key={index} file={file} hunks={hunks} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// This helper component will display a single file with collapsible diffs
-function FileGroup({ file, hunks }: { file: string, hunks: AnalysisHunk[] }) {
-  const [isExpanded, setIsExpanded] = useState(false)
-
-  return (
-    <div className="border-t border-gray-200">
-      <div
-        className="bg-gray-50 px-4 py-2 flex items-center justify-between cursor-pointer hover:bg-gray-100"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="font-mono text-sm text-gray-900 truncate">
-          {file}
-        </div>
-        <svg
-          className={`w-4 h-4 transform transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </div>
-
-      {isExpanded && (
-        <div className="bg-white">
-          {hunks.map((hunk, index) => (
-            <div key={index} className="px-4 py-2 border-t border-gray-100">
-              <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto bg-gray-50 p-3 rounded">
-                {hunk.diff}
-              </pre>
-            </div>
-          ))}
+        <div className="bg-white p-4">
+          <DiffViewer files={files} comments={[]} />
         </div>
       )}
     </div>

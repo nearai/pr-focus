@@ -17,11 +17,11 @@ export async function POST(req: NextRequest) {
 
     // Extract the data from the request body
     // The data might be in body.data, body.messages[0].content, or directly in body
-    let prDescription, changedFiles, fileChanges, stream
+    let prDescription, changedFiles, fileChanges, stream, max_tokens
 
     if (body.data) {
       // Data is in body.data
-      ;({ prDescription, changedFiles, fileChanges, stream } = body.data)
+      ;({ prDescription, changedFiles, fileChanges, stream, max_tokens } = body.data)
     } else if (
       body.messages &&
       body.messages.length > 0 &&
@@ -30,23 +30,26 @@ export async function POST(req: NextRequest) {
       // Data is in body.messages[0].content as a JSON string
       try {
         const content = JSON.parse(body.messages[0].content)
-        ;({ prDescription, changedFiles, fileChanges, stream } = content)
+        ;({ prDescription, changedFiles, fileChanges, stream, max_tokens } = content)
       } catch (e) {
         console.error('[DEBUG] Error parsing message content:', e)
       }
     } else {
       // Data is directly in body
-      ;({ prDescription, changedFiles, fileChanges, stream } = body)
+      ;({ prDescription, changedFiles, fileChanges, stream, max_tokens } = body)
     }
 
     // Default stream to false if not provided
     const useStream = stream === true
+    // Default max_tokens to 64000 if not provided
+    const useMaxTokens = max_tokens || 64000
 
     console.log('[DEBUG] PR analysis request data:', {
       descriptionLength: prDescription?.length || 0,
       numChangedFiles: changedFiles?.length || 0,
       fileChangesLength: fileChanges?.length || 0,
       stream: useStream,
+      max_tokens: useMaxTokens,
     })
 
     // Validate input
@@ -89,7 +92,7 @@ export async function POST(req: NextRequest) {
 
     // Create the AI stream
     console.log('[DEBUG] Creating AI stream for PR analysis')
-    return await createAIResponse(messages, useStream)
+    return await createAIResponse(messages, useStream, undefined, useMaxTokens)
   } catch (error) {
     console.error('Error analyzing PR:', error)
     return NextResponse.json(

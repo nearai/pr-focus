@@ -79,7 +79,8 @@ export function getAIConfig(): AIConfig {
 export async function createAIResponse(
   messages: any[],
   stream: boolean,
-  config: AIConfig = getAIConfig()
+  config: AIConfig = getAIConfig(),
+  max_tokens: number = 64000
 ): Promise<Response> {
   console.log('[DEBUG] Creating AI response with provider and model:', config.provider, config.model)
 
@@ -99,6 +100,7 @@ export async function createAIResponse(
         model: config.model,
         messages,
         stream,
+        max_tokens,
       }
       break
     case 'google':
@@ -116,6 +118,7 @@ export async function createAIResponse(
         })),
         generationConfig: {
           temperature: 0.7,
+          maxOutputTokens: max_tokens,
         },
       }
       break
@@ -129,6 +132,7 @@ export async function createAIResponse(
         model: config.model,
         messages,
         stream,
+        max_tokens,
       }
       break
     case 'openai':
@@ -142,6 +146,7 @@ export async function createAIResponse(
         model: config.model,
         messages,
         stream,
+        max_tokens,
       }
       break
   }
@@ -176,7 +181,8 @@ export async function createAIResponse(
 
 export async function createAIStream(
   messages: any[],
-  config: AIConfig = getAIConfig()
+  config: AIConfig = getAIConfig(),
+  max_tokens: number = 64000
 ): Promise<Response> {
-  return createAIResponse(messages, true, config)
+  return createAIResponse(messages, true, config, max_tokens)
 }

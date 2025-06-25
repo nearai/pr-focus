@@ -63,6 +63,7 @@ function PRPageContent() {
   const [analysisPromise, setAnalysisPromise] = useState<Promise<Response> | undefined>(undefined)
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult | null>(null)
   const [analysisError, setAnalysisError] = useState<string>('')
+  const [activeTab, setActiveTab] = useState<'analysis' | 'files' | 'comments'>('analysis')
   const analysisTriggeredForCurrentPR = useRef(false)
 
   // Format the analysis results
@@ -414,68 +415,79 @@ function PRPageContent() {
               )}
             </div>
 
-            {/* Analysis Results */}
+            {/* Tabbed interface for Analysis, Files Changed and Comments */}
             <div className="bg-white rounded-lg shadow">
-              <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  AI Analysis
-                </h3>
-                <button
-                  onClick={() => handleAnalyzePR()}
-                  disabled={analyzing}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  {analyzing ? 'Analyzing...' : 'Re-Analyze PR'}
-                </button>
-              </div>
-              <div className="p-4 sm:p-6">
-                {analysisError ? (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
-                    <p className="font-medium mb-1">Error in AI analysis:</p>
-                    <p className="whitespace-pre-wrap">{analysisError}</p>
-                  </div>
-                ) : analyzing && !analysisResults ? (
-                  <div className="text-gray-500 text-center py-8">
-                    <div className="flex flex-col items-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                      <p>Analyzing PR content...</p>
-                    </div>
-                  </div>
-                ) : !analysisResults && !analyzing ? (
-                  <div className="text-gray-500 text-center py-8">
-                    <p>Click "Analyze PR" to get AI-powered insights about this pull request.</p>
-                  </div>
-                ) : (
-                  <AnalysisResults
-                    results={analysisResults}
-                    loading={false}
-                    error={null}
-                  />
+              <div className="px-4 sm:px-6 border-b border-gray-200 flex justify-between items-center">
+                <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                  {(['analysis', 'files', 'comments'] as const).map((tab) => {
+                    const isActive = activeTab === tab;
+                    return (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`${
+                          isActive
+                            ? 'border-blue-600 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                      >
+                        {tab === 'files' ? `Full File Changes (${prData.files.length})` :
+                         tab === 'comments' ? `Comments (${prData.comments.length})` :
+                         'AI Analysis'}
+                      </button>
+                    );
+                  })}
+                </nav>
+                {activeTab === 'analysis' && (
+                  <button
+                    onClick={() => handleAnalyzePR()}
+                    disabled={analyzing}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    {analyzing ? 'Analyzing...' : 'Re-Analyze PR'}
+                  </button>
                 )}
               </div>
-            </div>
 
-            {/* Files Changed */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Files Changed ({prData.files.length})
-                </h3>
-              </div>
               <div className="p-4 sm:p-6">
-                <DiffViewer files={prData.files} comments={prData.comments} />
-              </div>
-            </div>
+                {/* AI Analysis Tab */}
+                {activeTab === 'analysis' && (
+                  <div>
+                    {analysisError ? (
+                      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
+                        <p className="font-medium mb-1">Error in AI analysis:</p>
+                        <p className="whitespace-pre-wrap">{analysisError}</p>
+                      </div>
+                    ) : analyzing && !analysisResults ? (
+                      <div className="text-gray-500 text-center py-8">
+                        <div className="flex flex-col items-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                          <p>Analyzing PR content...</p>
+                        </div>
+                      </div>
+                    ) : !analysisResults && !analyzing ? (
+                      <div className="text-gray-500 text-center py-8">
+                        <p>Click "Analyze PR" to get AI-powered insights about this pull request.</p>
+                      </div>
+                    ) : (
+                      <AnalysisResults
+                        results={analysisResults}
+                        loading={false}
+                        error={null}
+                      />
+                    )}
+                  </div>
+                )}
 
-            {/* Comments */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Comments ({prData.comments.length})
-                </h3>
-              </div>
-              <div className="p-4 sm:p-6">
-                <CommentSection comments={prData.comments} />
+                {/* Files Changed Tab */}
+                {activeTab === 'files' && (
+                  <DiffViewer files={prData.files} comments={prData.comments} />
+                )}
+
+                {/* Comments Tab */}
+                {activeTab === 'comments' && (
+                  <CommentSection comments={prData.comments} />
+                )}
               </div>
             </div>
           </div>
