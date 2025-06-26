@@ -4,9 +4,12 @@ import { useState, useEffect, Suspense, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { PRData, PRFile, PRComment } from '@/lib/github'
 import { GitHubAppAuthService, GitHubAppUser } from '@/lib/github-app-auth'
+import { getMostRecentPreviewLink, hasPreviewLinks } from '@/lib/preview-links'
 import DiffViewer from '@/components/DiffViewer'
 import CommentSection from '@/components/CommentSection'
 import AnalysisResults from '@/components/AnalysisResults'
+import ResizablePane from '@/components/ResizablePane'
+import PreviewFrame from '@/components/PreviewFrame'
 import NearAiBadge from '@/components/NearAiBadge'
 import yaml from 'js-yaml'
 import Link from "next/link";
@@ -67,6 +70,7 @@ function PRPageContent() {
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult | null>(null)
   const [analysisError, setAnalysisError] = useState<string>('')
   const [activeTab, setActiveTab] = useState<'analysis' | 'files' | 'comments'>('analysis')
+  const [previewMode, setPreviewMode] = useState(false)
   const analysisTriggeredForCurrentPR = useRef(false)
 
   // Format the analysis results
@@ -445,55 +449,149 @@ function PRPageContent() {
                     );
                   })}
                 </nav>
-                {activeTab === 'analysis' && (
-                  <button
-                    onClick={() => handleAnalyzePR()}
-                    disabled={analyzing}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
-                    {analyzing ? 'Analyzing...' : 'Re-Analyze PR'}
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {/* Preview button - only show if there are preview links in comments */}
+                  {(() => {
+                    const hasPreview = prData.comments.some(comment => hasPreviewLinks(comment.body))
+                    if (hasPreview) {
+                      return (
+                        <button
+                          onClick={() => setPreviewMode(!previewMode)}
+                          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                            previewMode
+                              ? 'bg-green-600 text-white hover:bg-green-700'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {previewMode ? 'Exit Preview' : 'Preview PR'}
+                        </button>
+                      )
+                    }
+                    return null
+                  })()}
+                  {activeTab === 'analysis' && (
+                    <button
+                      onClick={() => handleAnalyzePR()}
+                      disabled={analyzing}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                    >
+                      {analyzing ? 'Analyzing...' : 'Re-Analyze PR'}
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="p-4 sm:p-6">
-                {/* AI Analysis Tab */}
-                {activeTab === 'analysis' && (
-                  <div>
-                    {analysisError ? (
-                      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
-                        <p className="font-medium mb-1">Error in AI analysis:</p>
-                        <p className="whitespace-pre-wrap">{analysisError}</p>
+              <div className={previewMode ? '' : 'p-4 sm:p-6'}>
+                {previewMode ? (
+                  // Split view mode
+                  <ResizablePane
+                    leftPane={
+                      <div className="p-4 sm:p-6">
+                        {/* AI Analysis Tab */}
+                        {activeTab === 'analysis' && (
+                          <div>
+                            {analysisError ? (
+                              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
+                                <p className="font-medium mb-1">Error in AI analysis:</p>
+                                <p className="whitespace-pre-wrap">{analysisError}</p>
+                              </div>
+                            ) : analyzing && !analysisResults ? (
+                              <div className="text-gray-500 text-center py-8">
+                                <div className="flex flex-col items-center">
+                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                                  <p>Analyzing PR content...</p>
+                                </div>
+                              </div>
+                            ) : !analysisResults && !analyzing ? (
+                              <div className="text-gray-500 text-center py-8">
+                                <p>Click "Analyze PR" to get AI-powered insights about this pull request.</p>
+                              </div>
+                            ) : (
+                              <AnalysisResults
+                                results={analysisResults}
+                                loading={false}
+                                error={null}
+                              />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Files Changed Tab */}
+                        {activeTab === 'files' && (
+                          <DiffViewer files={prData.files} comments={prData.comments} />
+                        )}
+
+                        {/* Comments Tab */}
+                        {activeTab === 'comments' && (
+                          <CommentSection comments={prData.comments} />
+                        )}
                       </div>
-                    ) : analyzing && !analysisResults ? (
-                      <div className="text-gray-500 text-center py-8">
-                        <div className="flex flex-col items-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                          <p>Analyzing PR content...</p>
-                        </div>
+                    }
+                    rightPane={
+                      (() => {
+                        const previewUrl = getMostRecentPreviewLink(prData.comments)
+                        return previewUrl ? (
+                          <PreviewFrame url={previewUrl} />
+                        ) : (
+                          <div className="h-full flex items-center justify-center bg-gray-50">
+                            <div className="text-center">
+                              <div className="text-gray-400 mb-2">
+                                <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                                </svg>
+                              </div>
+                              <p className="text-gray-600">No preview URL found in comments</p>
+                            </div>
+                          </div>
+                        )
+                      })()
+                    }
+                    defaultLeftWidth={60}
+                    minLeftWidth={30}
+                    maxLeftWidth={80}
+                  />
+                ) : (
+                  // Normal single pane mode
+                  <>
+                    {/* AI Analysis Tab */}
+                    {activeTab === 'analysis' && (
+                      <div>
+                        {analysisError ? (
+                          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4">
+                            <p className="font-medium mb-1">Error in AI analysis:</p>
+                            <p className="whitespace-pre-wrap">{analysisError}</p>
+                          </div>
+                        ) : analyzing && !analysisResults ? (
+                          <div className="text-gray-500 text-center py-8">
+                            <div className="flex flex-col items-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                              <p>Analyzing PR content...</p>
+                            </div>
+                          </div>
+                        ) : !analysisResults && !analyzing ? (
+                          <div className="text-gray-500 text-center py-8">
+                            <p>Click "Analyze PR" to get AI-powered insights about this pull request.</p>
+                          </div>
+                        ) : (
+                          <AnalysisResults
+                            results={analysisResults}
+                            loading={false}
+                            error={null}
+                          />
+                        )}
                       </div>
-                    ) : !analysisResults && !analyzing ? (
-                      <div className="text-gray-500 text-center py-8">
-                        <p>Click "Analyze PR" to get AI-powered insights about this pull request.</p>
-                      </div>
-                    ) : (
-                      <AnalysisResults
-                        results={analysisResults}
-                        loading={false}
-                        error={null}
-                      />
                     )}
-                  </div>
-                )}
 
-                {/* Files Changed Tab */}
-                {activeTab === 'files' && (
-                  <DiffViewer files={prData.files} comments={prData.comments} />
-                )}
+                    {/* Files Changed Tab */}
+                    {activeTab === 'files' && (
+                      <DiffViewer files={prData.files} comments={prData.comments} />
+                    )}
 
-                {/* Comments Tab */}
-                {activeTab === 'comments' && (
-                  <CommentSection comments={prData.comments} />
+                    {/* Comments Tab */}
+                    {activeTab === 'comments' && (
+                      <CommentSection comments={prData.comments} />
+                    )}
+                  </>
                 )}
               </div>
             </div>
