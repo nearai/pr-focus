@@ -48,13 +48,13 @@ const PREVIEW_PATTERNS = [
  * Extract preview deployment URLs from a comment body
  */
 export function extractPreviewLinks(commentBody: string): string[] {
-  const urls: string[] = []
+  const urls = new Set<string>() // Use Set to avoid duplicates
   
   // First try specific patterns
   for (const pattern of PREVIEW_PATTERNS) {
     const matches = commentBody.match(pattern)
     if (matches) {
-      urls.push(...matches)
+      matches.forEach(url => urls.add(url))
     }
   }
   
@@ -64,14 +64,14 @@ export function extractPreviewLinks(commentBody: string): string[] {
   
   for (const url of allUrls) {
     for (const domain of PREVIEW_DOMAINS) {
-      if (url.includes(domain) && !urls.includes(url)) {
-        urls.push(url)
+      if (url.includes(domain)) {
+        urls.add(url)
       }
     }
   }
   
-  // Clean up URLs (remove trailing punctuation)
-  return urls.map(url => url.replace(/[.,!?;]$/, ''))
+  // Clean up URLs (remove trailing punctuation) and convert to array
+  return Array.from(urls).map(url => url.replace(/[.,!?;]$/, ''))
 }
 
 /**

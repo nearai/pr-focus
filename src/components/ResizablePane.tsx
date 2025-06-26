@@ -77,9 +77,9 @@ export default function ResizablePane({
         onMouseDown={handleMouseDown}
       >
         <div className="absolute inset-y-0 -left-1 -right-1 flex items-center justify-center">
-          <div className="w-3 h-8 bg-gray-400 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="w-0.5 h-full bg-white mx-auto"></div>
-            <div className="w-0.5 h-full bg-white mx-auto mt-0.5"></div>
+          <div className="w-1 h-8 bg-gray-400 rounded opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-center">
+            <div className="w-0.5 h-1 bg-white mx-auto mb-0.5"></div>
+            <div className="w-0.5 h-1 bg-white mx-auto"></div>
           </div>
         </div>
       </div>
